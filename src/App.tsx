@@ -1,21 +1,15 @@
+import { useEffect, useMemo, useState } from 'react'
 import { useApuracao } from './estado/useApuracao'
-import type { Candidatura } from './tse/tipos'
+import { useMapaUF } from './estado/useMapaUF'
+import { useSerieTemporal } from './estado/useSerieTemporal'
+import FaixaEstado from './viz/FaixaEstado'
+import BarrasCandidatos from './viz/BarrasCandidatos'
+import SerieTemporal from './viz/SerieTemporal'
+import TabelaCompleta from './viz/TabelaCompleta'
+import MapaUF from './viz/MapaUF'
+import { registrarOrdem } from './viz/cores'
 import { CARGO, ELEICAO } from './tse/urls'
 
-// A cor segue a candidatura, nunca a colocacao: uma ultrapassagem nao
-// pode repintar as barras. O mapa e fixado na primeira coleta.
-const slots = ['var(--color-serie-1)', 'var(--color-serie-2)', 'var(--color-serie-3)']
-const coresPorNumero = new Map<string, string>()
-
-function corDa(candidatura: Candidatura, posicao: number): string {
-  const existente = coresPorNumero.get(candidatura.numero)
-  if (existente) return existente
-  const cor = posicao < slots.length ? slots[posicao] : 'var(--color-contexto)'
-  coresPorNumero.set(candidatura.numero, cor)
-  return cor
-}
-
-const inteiro = new Intl.NumberFormat('pt-BR')
 const doisDecimais = new Intl.NumberFormat('pt-BR', {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
@@ -27,6 +21,37 @@ export default function App() {
     'br',
     CARGO.presidente,
   )
+  const { porUf, carregadas, total } = useMapaUF(ELEICAO.federal1, CARGO.presidente)
+  const { serie } = useSerieTemporal(dados)
+
+  const [ufSelecionada, setUfSelecionada] = useState<string | null>(null)
+  const [numeroMapa, setNumeroMapa] = useState<string | null>(null)
+
+  // Fixa a identidade de cor assim que o primeiro dado chega, antes de
+  // qualquer componente montar, para que nenhuma barra troque de cor depois.
+  useEffect(() => {
+    if (dados) registrarOrdem(dados.candidaturas)
+  }, [dados])
+
+  // Derivado no render, nao em efeito: a primeira candidatura e o padrao
+  // ate que o leitor escolha outra.
+  const numeroEfetivo = numeroMapa ?? dados?.candidaturas[0]?.numero ?? null
+
+  const candidaturaMapa = useMemo(
+    () => dados?.candidaturas.find((c) => c.numero === numeroEfetivo) ?? null,
+    [dados, numeroEfetivo],
+  )
+
+  const percentualPorUf = useMemo(() => {
+    const mapa: Record<string, number | null> = {}
+    for (const [uf, apuracao] of Object.entries(porUf)) {
+      const alvo = apuracao.candidaturas.find((c) => c.numero === numeroEfetivo)
+      mapa[uf] = alvo ? alvo.percentual : null
+    }
+    return mapa
+  }, [porUf, numeroEfetivo])
+
+  const apuracaoUf = ufSelecionada ? (porUf[ufSelecionada] ?? null) : null
 
   return (
     <div className="mx-auto min-h-full max-w-5xl px-4 py-8 sm:px-6">
@@ -45,101 +70,96 @@ export default function App() {
       )}
 
       {dados && (
-        <>
-          <section
-            className="mb-10 rounded-xl border border-white/10 bg-[var(--color-superficie)] p-6"
-            aria-label="Estado da apuração"
-          >
-            <p className="text-sm text-[var(--color-tinta-3)]">Seções totalizadas</p>
-            <p className="tabular mt-1 text-5xl font-semibold leading-none">
-              {doisDecimais.format(dados.percentualSecoes)}
-              <span className="text-2xl text-[var(--color-tinta-2)]">%</span>
-            </p>
-            <div
-              className="mt-4 h-2 w-full overflow-hidden rounded-full bg-[var(--color-grade)]"
-              role="progressbar"
-              aria-valuenow={Math.round(dados.percentualSecoes)}
-              aria-valuemin={0}
-              aria-valuemax={100}
-            >
-              <div
-                className="h-full rounded-full bg-[var(--color-serie-1)] transition-[width] duration-300"
-                style={{ width: `${Math.min(100, dados.percentualSecoes)}%` }}
-              />
-            </div>
-            <dl className="tabular mt-5 grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
-              <div>
-                <dt className="text-[var(--color-tinta-3)]">Seções</dt>
-                <dd>
-                  {inteiro.format(dados.secoesTotalizadas)} de{' '}
-                  {inteiro.format(dados.secoesTotais)}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-[var(--color-tinta-3)]">Comparecimento</dt>
-                <dd>{doisDecimais.format(dados.percentualComparecimento)}%</dd>
-              </div>
-              <div>
-                <dt className="text-[var(--color-tinta-3)]">Abstenção</dt>
-                <dd>{doisDecimais.format(dados.percentualAbstencao)}%</dd>
-              </div>
-              <div>
-                <dt className="text-[var(--color-tinta-3)]">Gerado pelo TSE</dt>
-                <dd>{dados.geradoEm}</dd>
-              </div>
-            </dl>
-            {defasado && (
-              <p className="mt-4 text-sm text-[var(--color-alerta)]">
-                Sem atualização há mais de três minutos. O número abaixo pode estar
-                defasado.
-              </p>
-            )}
-          </section>
+        <div className="space-y-12">
+          <FaixaEstado apuracao={dados} defasado={defasado} />
 
           <section aria-label="Votação por candidatura">
             <h2 className="mb-4 text-sm font-medium text-[var(--color-tinta-3)]">
-              Votos nominais apurados
+              Votos nominais apurados no Brasil
             </h2>
-            <ol className="space-y-3">
-              {dados.candidaturas.map((c, i) => (
-                <li key={c.numero}>
-                  <div className="flex items-baseline justify-between gap-3 text-sm">
-                    <span className="truncate">
-                      <span className="tabular mr-2 text-[var(--color-tinta-3)]">
-                        {c.numero}
-                      </span>
-                      {c.nomeUrna}
-                      <span className="ml-2 text-[var(--color-tinta-3)]">{c.partido}</span>
-                    </span>
-                    <span className="tabular shrink-0 text-[var(--color-tinta-2)]">
-                      {inteiro.format(c.votos)}
-                      <span className="ml-3 font-medium text-[var(--color-tinta)]">
-                        {doisDecimais.format(c.percentual)}%
-                      </span>
-                    </span>
-                  </div>
-                  <div className="relative mt-1.5 h-3 w-full rounded-sm bg-[var(--color-grade)]">
-                    <div
-                      className="h-full rounded-sm transition-[width] duration-300"
-                      style={{
-                        width: `${Math.min(100, c.percentual)}%`,
-                        backgroundColor: corDa(c, i),
-                      }}
-                    />
-                    <div
-                      className="absolute inset-y-[-3px] w-px bg-[var(--color-base)]"
-                      style={{ left: '50%' }}
-                      aria-hidden="true"
-                    />
-                  </div>
-                </li>
-              ))}
-            </ol>
-            <p className="mt-3 text-xs text-[var(--color-tinta-3)]">
-              A marca vertical indica 50% dos votos válidos, limite do segundo turno.
-            </p>
+            <BarrasCandidatos candidaturas={dados.candidaturas} />
           </section>
-        </>
+
+          <section aria-label="Evolução da apuração">
+            <h2 className="mb-4 text-sm font-medium text-[var(--color-tinta-3)]">
+              Evolução conforme a apuração avança
+            </h2>
+            <SerieTemporal serie={serie} candidaturas={dados.candidaturas} />
+          </section>
+
+          <section aria-label="Resultado por unidade federativa">
+            <div className="mb-4 flex flex-wrap items-baseline justify-between gap-3">
+              <h2 className="text-sm font-medium text-[var(--color-tinta-3)]">
+                Percentual por unidade federativa
+              </h2>
+              <p className="text-xs text-[var(--color-tinta-3)]">
+                {carregadas} de {total} unidades carregadas
+              </p>
+            </div>
+
+            <div
+              className="mb-5 flex flex-wrap gap-2"
+              role="group"
+              aria-label="Escolha da candidatura mostrada no mapa"
+            >
+              {dados.candidaturas.slice(0, 6).map((c) => {
+                const ativo = c.numero === numeroEfetivo
+                return (
+                  <button
+                    key={c.numero}
+                    type="button"
+                    onClick={() => setNumeroMapa(c.numero)}
+                    aria-pressed={ativo}
+                    className={[
+                      'rounded-full border px-3 py-1.5 text-sm transition-colors',
+                      'focus-visible:outline focus-visible:outline-2',
+                      'focus-visible:outline-offset-2 focus-visible:outline-[var(--color-tinta)]',
+                      ativo
+                        ? 'border-[var(--color-tinta)] bg-[var(--color-superficie)] text-[var(--color-tinta)]'
+                        : 'border-white/10 text-[var(--color-tinta-2)] hover:border-white/25',
+                    ].join(' ')}
+                  >
+                    <span className="tabular mr-1.5 text-[var(--color-tinta-3)]">
+                      {c.numero}
+                    </span>
+                    {c.nomeUrna}
+                  </button>
+                )
+              })}
+            </div>
+
+            {candidaturaMapa && (
+              <MapaUF
+                percentualPorUf={percentualPorUf}
+                ufSelecionada={ufSelecionada}
+                aoSelecionar={(uf) => setUfSelecionada(uf === ufSelecionada ? null : uf)}
+                rotuloCandidatura={`${candidaturaMapa.nomeUrna} (${candidaturaMapa.numero})`}
+              />
+            )}
+          </section>
+
+          {apuracaoUf && (
+            <section aria-label={`Resultado em ${apuracaoUf.uf.toUpperCase()}`}>
+              <div className="mb-4 flex flex-wrap items-baseline justify-between gap-3">
+                <h2 className="text-sm font-medium text-[var(--color-tinta-3)]">
+                  Presidente em {apuracaoUf.uf.toUpperCase()}
+                </h2>
+                <p className="tabular text-xs text-[var(--color-tinta-3)]">
+                  {doisDecimais.format(apuracaoUf.percentualSecoes)}% das seções
+                  totalizadas · gerado em {apuracaoUf.geradoEm}
+                </p>
+              </div>
+              <BarrasCandidatos candidaturas={apuracaoUf.candidaturas} />
+            </section>
+          )}
+
+          <section aria-label="Tabela completa">
+            <h2 className="mb-4 text-sm font-medium text-[var(--color-tinta-3)]">
+              Todos os números
+            </h2>
+            <TabelaCompleta apuracao={apuracaoUf ?? dados} />
+          </section>
+        </div>
       )}
 
       {erro && (
@@ -152,6 +172,10 @@ export default function App() {
         Fonte oficial:{' '}
         <a className="underline" href="https://resultados.tse.jus.br">
           resultados.tse.jus.br
+        </a>
+        . Malha das unidades federativas:{' '}
+        <a className="underline" href="https://github.com/fititnt/gis-dataset-brasil">
+          fititnt/gis-dataset-brasil
         </a>
         . Este painel é independente e não substitui a divulgação oficial.
       </footer>
