@@ -1,0 +1,46 @@
+name: snapshot
+
+# O TSE publica apenas a fotografia corrente da apuracao. Este fluxo acumula a
+# serie historica no proprio repositorio, a cada cinco minutos.
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Grupo proprio, separado do deploy. Duas coletas nunca se sobrepoem e a que
+# ja esta rodando nunca e cancelada, para nao perder um ponto da serie.
+concurrency:
+  group: snapshot-historico
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - id: coleta
+        name: Coletar do TSE
+        run: node scripts/snapshot.mjs
+
+      - name: Gravar o ponto
+        env:
+          PST: ${{ steps.coleta.outputs.pst }}
+        run: |
+          if [ -z "$(git status --porcelain historico)" ]; then
+            echo "sem alteracao em historico/, nada a commitar"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add historico
+          git commit -m "snapshot: ${PST:-0,00}% apurado"
+          git push

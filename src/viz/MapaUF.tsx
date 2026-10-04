@@ -2,26 +2,24 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FocusEvent, KeyboardEvent, MouseEvent } from 'react'
 
 // Rampa sequencial de uma cor so, do claro ao escuro, documentada na
-// disciplina de visualizacao do projeto. Sete classes e o teto util: acima
-// disso as classes vizinhas deixam de ser distinguiveis.
-const RAMPA_AZUL = [
-  '#cde2fb',
-  '#9ec5f4',
-  '#6da7ec',
-  '#3987e5',
-  '#256abf',
-  '#184f95',
-  '#0d366b',
-] as const
+// disciplina de visualizacao do projeto.
+//
+// Cinco classes, nao sete. Os dois passos mais escuros da rampa documentada
+// (#184f95 e #0d366b) rendem 2,15 e 1,46 de contraste contra a superficie
+// escura #1a1a19: nessa faixa as classes vizinhas deixam de se distinguir e o
+// estado se confunde com o fundo. Com cinco passos o pior caso fica em 3,23.
+const RAMPA_AZUL = ['#cde2fb', '#9ec5f4', '#6da7ec', '#3987e5', '#256abf'] as const
 
 const COR_BASE_PADRAO = '#3987e5'
 const CLASSES = RAMPA_AZUL.length
 const COR_SEM_DADO = 'var(--color-grade)'
 
 // Fatores medidos na rampa azul: o passo 4 e a propria cor base, os tres
-// anteriores caminham para o branco e os tres seguintes para o preto.
+// anteriores caminham para o branco e o seguinte caminha para o preto.
+// PARA_CLARO esta em ordem decrescente de mistura, que e a ordem do mais
+// claro para o menos claro, igual a da rampa documentada.
 const PARA_CLARO = [0.78, 0.52, 0.27]
-const PARA_ESCURO = [0.22, 0.42, 0.6]
+const PARA_ESCURO = [0.22]
 
 interface UfMalha {
   sigla: string
@@ -77,8 +75,11 @@ function rampaDe(corBase: string): readonly string[] {
   if (corBase.toLowerCase() === COR_BASE_PADRAO) return RAMPA_AZUL
   const rgb = hexParaRgb(corBase)
   if (!rgb) return RAMPA_AZUL
+  // Sem reverter: PARA_CLARO ja esta do mais claro para o menos claro.
+  // Reverter aqui quebrava a monotonicidade da rampa derivada, defeito que
+  // ficava escondido enquanto a cor base era a documentada.
   return [
-    ...PARA_CLARO.map((t) => mistura(rgb, 255, t)).reverse(),
+    ...PARA_CLARO.map((t) => mistura(rgb, 255, t)),
     corBase,
     ...PARA_ESCURO.map((t) => mistura(rgb, 0, t)),
   ]
@@ -205,7 +206,7 @@ export default function MapaUF({
       <div ref={caixa} className="relative">
         <svg
           viewBox={malha.viewBox}
-          className="h-auto w-full max-w-xl"
+          className="mx-auto h-auto w-full max-w-xl"
           role="group"
           aria-label={`Mapa do Brasil com o percentual de ${rotuloCandidatura} em cada unidade federativa. Selecione uma unidade para detalhar.`}
         >

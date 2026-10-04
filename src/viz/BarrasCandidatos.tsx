@@ -5,6 +5,8 @@ import { corDaCandidatura, registrarOrdem } from './cores'
 export interface BarrasCandidatosProps {
   candidaturas: Candidatura[]
   marca50?: boolean
+  /** Titulo contextual da secao. O padrao serve ao uso nacional. */
+  titulo?: string
 }
 
 const inteiro = new Intl.NumberFormat('pt-BR')
@@ -23,7 +25,11 @@ const RECUO = 'pl-[3.25rem]'
  * linhas, nunca a tinta. O percentual aparece em texto em toda linha, entao
  * nenhuma informacao depende de enxergar a barra ou a cor.
  */
-export function BarrasCandidatos({ candidaturas, marca50 = true }: BarrasCandidatosProps) {
+export function BarrasCandidatos({
+  candidaturas,
+  marca50 = true,
+  titulo = 'Votos nominais apurados',
+}: BarrasCandidatosProps) {
   const [fotoQuebrada, setFotoQuebrada] = useState<Record<string, boolean>>({})
   const [ativo, setAtivo] = useState<string | null>(null)
 
@@ -34,11 +40,9 @@ export function BarrasCandidatos({ candidaturas, marca50 = true }: BarrasCandida
   const ordenadas = [...candidaturas].sort((a, b) => b.votos - a.votos)
 
   return (
-    <section aria-label="Votação por candidatura">
+    <section aria-label={titulo}>
       <div className={`${RECUO} relative mb-2`}>
-        <h2 className="text-sm font-medium text-[var(--color-tinta-3)]">
-          Votos nominais apurados
-        </h2>
+        <h2 className="text-sm font-medium text-[var(--color-tinta-3)]">{titulo}</h2>
         {marca50 && (
           <p
             className="absolute bottom-0 left-1/2 hidden -translate-x-1/2 text-xs text-[var(--color-tinta-3)] sm:block"

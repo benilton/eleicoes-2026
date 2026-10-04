@@ -3,6 +3,9 @@ name: deploy
 on:
   push:
     branches: [main]
+    # O push do snapshot usa o GITHUB_TOKEN padrao, que nao dispara outros
+    # fluxos. Esta linha e a segunda barreira contra um laco de deploy.
+    paths-ignore: ['historico/**']
   workflow_dispatch:
 
 permissions:

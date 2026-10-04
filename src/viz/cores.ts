@@ -19,7 +19,16 @@ const SLOTS: string[] = [
 
 export const COR_CONTEXTO = 'var(--color-contexto)'
 
+/**
+ * Os mesmos slots em hexadecimal, nos passos do modo escuro declarados em
+ * index.css. Servem a quem precisa do valor literal, caso do mapa, que deriva
+ * uma rampa sequencial misturando a cor base com branco e com preto.
+ */
+const SLOTS_HEX: string[] = ['#3987e5', '#d95926', '#199e70']
+const HEX_CONTEXTO = '#4a4a46'
+
 const corPorNumero = new Map<string, string>()
+const hexPorNumero = new Map<string, string>()
 const ordemIdentidade: string[] = []
 let fixada = false
 
@@ -31,9 +40,11 @@ export function registrarOrdem(candidaturas: Candidatura[]): void {
     if (corPorNumero.has(candidatura.numero)) continue
     if (i < SLOTS.length) {
       corPorNumero.set(candidatura.numero, SLOTS[i])
+      hexPorNumero.set(candidatura.numero, SLOTS_HEX[i])
       ordemIdentidade.push(candidatura.numero)
     } else {
       corPorNumero.set(candidatura.numero, COR_CONTEXTO)
+      hexPorNumero.set(candidatura.numero, HEX_CONTEXTO)
     }
   }
   fixada = true
@@ -42,6 +53,11 @@ export function registrarOrdem(candidaturas: Candidatura[]): void {
 /** Cor fixa da candidatura. Numero desconhecido recebe a cor de contexto. */
 export function corDaCandidatura(numero: string): string {
   return corPorNumero.get(numero) ?? COR_CONTEXTO
+}
+
+/** Cor fixa da candidatura em hexadecimal, para quem nao pode usar var(). */
+export function hexDaCandidatura(numero: string): string {
+  return hexPorNumero.get(numero) ?? HEX_CONTEXTO
 }
 
 /** Verdadeiro quando a candidatura ocupa um dos tres slots de identidade. */
