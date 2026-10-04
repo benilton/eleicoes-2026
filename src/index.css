@@ -1,0 +1,44 @@
+@import "tailwindcss";
+
+/* Paleta validada da disciplina de visualizacao do projeto.
+   Modo escuro e o padrao, porque o uso previsto e noite de apuracao. */
+@theme {
+  --color-superficie: #1a1a19;
+  --color-plano: #0d0d0d;
+  --color-tinta: #ffffff;
+  --color-tinta-2: #c3c2b7;
+  --color-tinta-3: #898781;
+  --color-grade: #2c2c2a;
+  --color-base: #383835;
+  --color-serie-1: #3987e5;
+  --color-serie-2: #d95926;
+  --color-serie-3: #199e70;
+  --color-contexto: #4a4a46;
+  --color-alerta: #fab219;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background-color: var(--color-plano);
+  color: var(--color-tinta);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
