@@ -1,0 +1,47 @@
+name: coleta-continua
+
+# Execucao longa que amostra a apuracao sozinha, sem depender do agendador.
+# Dispare uma vez pelo botao Run workflow e ela cobre o resto da noite.
+
+on:
+  workflow_dispatch:
+    inputs:
+      duracao_minutos:
+        description: 'Por quantos minutos coletar'
+        required: false
+        default: '300'
+      intervalo_segundos:
+        description: 'Intervalo entre coletas'
+        required: false
+        default: '60'
+      commits_a_cada:
+        description: 'Quantos pontos acumular antes de commitar'
+        required: false
+        default: '5'
+
+permissions:
+  contents: write
+
+# Mesmo grupo do fluxo agendado: os dois nunca escrevem o arquivo ao mesmo
+# tempo. Se o agendador acordar durante a execucao longa, ele espera.
+concurrency:
+  group: snapshot-historico
+  cancel-in-progress: false
+
+jobs:
+  coletar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Coletar em ciclo
+        env:
+          DURACAO_MIN: ${{ inputs.duracao_minutos }}
+          INTERVALO_S: ${{ inputs.intervalo_segundos }}
+          COMMITS_A_CADA: ${{ inputs.commits_a_cada }}
+        run: bash scripts/coleta-continua.sh
