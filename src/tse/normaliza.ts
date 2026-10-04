@@ -54,6 +54,7 @@ export function normalizar(bruto: TseArquivoUnificado, cargo: string): Apuracao 
     votosValidos: paraNumero(bruto.v?.vv),
     votosBrancos: paraNumero(bruto.v?.vb),
     votosNulos: paraNumero(bruto.v?.vn),
+    votosNominais: paraNumero(bruto.v?.vnom),
     candidaturas,
   }
 }

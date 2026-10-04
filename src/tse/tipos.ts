@@ -121,5 +121,7 @@ export interface Apuracao {
   votosValidos: number
   votosBrancos: number
   votosNulos: number
+  /** Total de votos nominais apurados: campo v.vnom, denominador de pvap. */
+  votosNominais: number
   candidaturas: Candidatura[]
 }

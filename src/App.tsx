@@ -10,11 +10,13 @@ import BarrasCandidatos from './viz/BarrasCandidatos'
 import SerieTemporal from './viz/SerieTemporal'
 import TabelaCompleta from './viz/TabelaCompleta'
 import MapaUF from './viz/MapaUF'
+import type { ModoMapa } from './viz/MapaUF'
+import TabelaEstados from './viz/TabelaEstados'
 import ConvergenciaUF from './viz/ConvergenciaUF'
 import Regioes from './viz/Regioes'
 import { Abas } from './ui/Abas'
 import type { Aba } from './ui/Abas'
-import { hexDaCandidatura, temIdentidade } from './viz/cores'
+import { numerosComIdentidade, registrarOrdem } from './viz/cores'
 import { CARGO, ELEICAO } from './tse/urls'
 
 const doisDecimais = new Intl.NumberFormat('pt-BR', {
@@ -39,22 +41,14 @@ export default function App() {
   // na troca de aba.
   const [ufSelecionada, setUfSelecionada] = useState<string | null>(null)
   const [numeroMapa, setNumeroMapa] = useState<string | null>(null)
+  const [modoMapa, setModoMapa] = useState<ModoMapa>('lider')
+
+  // Idempotente. Precisa rodar antes de numerosComIdentidade, porque a aba
+  // de Estados pode ser a primeira a montar quando a pagina abre em #estados.
+  if (dados) registrarOrdem(dados.candidaturas)
+  const numerosDestaque = numerosComIdentidade()
 
   const numeroEfetivo = numeroMapa ?? dados?.candidaturas[0]?.numero ?? null
-
-  const candidaturaMapa = useMemo(
-    () => dados?.candidaturas.find((c) => c.numero === numeroEfetivo) ?? null,
-    [dados, numeroEfetivo],
-  )
-
-  const percentualPorUf = useMemo(() => {
-    const mapa: Record<string, number | null> = {}
-    for (const [uf, apuracao] of Object.entries(porUf)) {
-      const alvo = apuracao.candidaturas.find((c) => c.numero === numeroEfetivo)
-      mapa[uf] = alvo ? alvo.percentual : null
-    }
-    return mapa
-  }, [porUf, numeroEfetivo])
 
   const apuracaoUf = ufSelecionada ? (porUf[ufSelecionada] ?? null) : null
 
@@ -120,7 +114,7 @@ export default function App() {
             </div>
 
             <div
-              className="mb-5 flex flex-wrap gap-2"
+              className={`mb-5 flex-wrap gap-2 ${modoMapa === 'percentual' ? 'flex' : 'hidden'}`}
               role="group"
               aria-label="Escolha da candidatura mostrada no mapa"
             >
@@ -150,19 +144,26 @@ export default function App() {
               })}
             </div>
 
-            {candidaturaMapa && (
-              <MapaUF
-                percentualPorUf={percentualPorUf}
-                ufSelecionada={ufSelecionada}
-                aoSelecionar={(uf) => setUfSelecionada(uf === ufSelecionada ? null : uf)}
-                rotuloCandidatura={`${candidaturaMapa.nomeUrna} (${candidaturaMapa.numero})`}
-                corBase={
-                  temIdentidade(candidaturaMapa.numero)
-                    ? hexDaCandidatura(candidaturaMapa.numero)
-                    : undefined
-                }
-              />
-            )}
+            <MapaUF
+              dadosPorUf={porUf}
+              numerosDestaque={numerosDestaque}
+              modo={modoMapa}
+              aoTrocarModo={setModoMapa}
+              numeroPercentual={numeroEfetivo}
+              ufSelecionada={ufSelecionada}
+              aoSelecionar={(uf) => setUfSelecionada(uf === ufSelecionada ? null : uf)}
+            />
+          </section>
+
+          <section aria-label="Votos por unidade federativa">
+            <h2 className={tituloSecao}>Votos por unidade federativa</h2>
+            <TabelaEstados
+              dadosPorUf={porUf}
+              numerosDestaque={numerosDestaque}
+              candidaturas={dados.candidaturas}
+              ufSelecionada={ufSelecionada}
+              aoSelecionar={(uf) => setUfSelecionada(uf === ufSelecionada ? null : uf)}
+            />
           </section>
 
           {apuracaoUf ? (

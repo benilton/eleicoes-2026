@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import type { KeyboardEvent } from 'react'
+import { intervaloWald, type IntervaloConfianca } from '../analise/intervalo'
 import type { Estimativa } from '../analise/projecao'
 import type { PontoHistorico } from '../estado/useHistorico'
 import type { Candidatura } from '../tse/tipos'
@@ -24,6 +25,15 @@ const umDecimal = new Intl.NumberFormat('pt-BR', {
   maximumFractionDigits: 1,
 })
 
+// A meia-largura do intervalo vive na terceira casa do ponto percentual: com
+// dezenas de milhoes de votos ela nao chega a um centesimo de ponto.
+const tresDecimais = new Intl.NumberFormat('pt-BR', {
+  minimumFractionDigits: 3,
+  maximumFractionDigits: 3,
+})
+
+const inteiro = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 })
+
 // Geometria compartilhada pelos dois graficos. A margem esquerda e a direita
 // sao as mesmas nos dois, entao a coluna de cada percentual de secoes cai no
 // mesmo lugar em ambos: e isso que permite ler um sobre o outro.
@@ -42,6 +52,13 @@ const ALTURA_B = 222
 const TOPO_B = 20
 const Y0_B = TOPO_B
 const Y1_B = 170
+
+// Grafico C. Mesma margem esquerda e direita dos outros dois, logo a mesma
+// coluna horizontal: cada percentual de secoes cai no mesmo x nos tres.
+const ALTURA_C = 200
+const TOPO_C = 18
+const Y0_C = TOPO_C
+const Y1_C = 152
 
 const MARCAS_X = [0, 25, 50, 75, 100]
 const LIMITE_SEGUNDO_TURNO = 50
@@ -91,6 +108,44 @@ function segmentos(amostras: { x: number; y: number | null }[]): string[] {
   return saida
 }
 
+/** Um limite da faixa de confianca, ja em coordenada de tela. */
+interface AmostraDeFaixa {
+  x: number
+  alto: number | null
+  baixo: number | null
+}
+
+/**
+ * Converte a faixa de confianca em caminhos fechados, um por trecho continuo.
+ * Ponto sem intervalo interrompe a area em vez de ser atravessado por ela.
+ */
+function areas(amostras: AmostraDeFaixa[]): string[] {
+  const saida: string[] = []
+  let atual: { x: number; alto: number; baixo: number }[] = []
+
+  const fechar = (): void => {
+    if (atual.length > 1) {
+      const ida = atual.map((a) => `${a.x},${a.alto}`).join(' L ')
+      const volta = [...atual]
+        .reverse()
+        .map((a) => `${a.x},${a.baixo}`)
+        .join(' L ')
+      saida.push(`M ${ida} L ${volta} Z`)
+    }
+    atual = []
+  }
+
+  for (const amostra of amostras) {
+    if (amostra.alto === null || amostra.baixo === null) {
+      fechar()
+      continue
+    }
+    atual.push({ x: amostra.x, alto: amostra.alto, baixo: amostra.baixo })
+  }
+  fechar()
+  return saida
+}
+
 /** Afasta rotulos que se sobrepoem, sem perder a ligacao com a curva de origem. */
 function afastar(rotulos: RotuloPonta[], minimo: number): RotuloPonta[] {
   const ordenados = [...rotulos].sort((a, b) => a.yReal - b.yReal)
@@ -115,6 +170,24 @@ function passoDaMargem(amplitude: number): number {
 }
 
 /**
+ * Passo de grade da escala de precisao. Essa escala atravessa varias ordens de
+ * grandeza ao longo da noite, porque a meia-largura cai com a raiz de n, entao
+ * o passo precisa ser derivado do proprio maximo. A sequencia 1, 2, 5 por
+ * decada mantem o rotulo legivel tanto em milesimo de ponto quanto em ponto.
+ */
+function passoDaPrecisao(maximo: number): number {
+  if (!(maximo > 0)) return 1
+  const bruto = maximo / 4
+  const potencia = 10 ** Math.floor(Math.log10(bruto))
+  const normalizado = bruto / potencia
+  let escolhido = 10
+  if (normalizado <= 1) escolhido = 1
+  else if (normalizado <= 2) escolhido = 2
+  else if (normalizado <= 5) escolhido = 5
+  return escolhido * potencia
+}
+
+/**
  * Convergencia da apuracao, em dois graficos empilhados e em SVG inline.
  *
  * O eixo horizontal e o percentual de secoes totalizadas, fixo de 0 a 100, e
@@ -135,6 +208,7 @@ export function SerieTemporal({
 }: SerieTemporalProps) {
   const svgA = useRef<SVGSVGElement | null>(null)
   const svgB = useRef<SVGSVGElement | null>(null)
+  const svgC = useRef<SVGSVGElement | null>(null)
   const [indice, setIndice] = useState<number | null>(null)
 
   const identidade = numerosComIdentidade()
@@ -274,11 +348,53 @@ export function SerieTemporal({
   const COR_ATE_METADE = 'var(--color-tinta)'
 
   // -------------------------------------------------------------------------
+  // Grafico C: precisao, meia-largura do intervalo de 95% em pontos percentuais
+  // -------------------------------------------------------------------------
+
+  // Um registro por ponto, na mesma posicao de `ordenados`. Ponto sem o total
+  // de votos nominais fica com nulo em todas as candidaturas: sem n nao ha
+  // intervalo, e o buraco quebra a linha em vez de ser interpolado.
+  const intervalos: Record<string, IntervaloConfianca | null>[] = ordenados.map((ponto) => {
+    const porCandidato: Record<string, IntervaloConfianca | null> = {}
+    const n = finito(ponto.n)
+    for (const linha of linhas) {
+      const percentual = finito(ponto.porCandidato[linha.numero])
+      porCandidato[linha.numero] =
+        n === null || percentual === null ? null : intervaloWald((percentual / 100) * n, n)
+    }
+    return porCandidato
+  })
+
+  const meiasLarguras: number[] = []
+  for (const porCandidato of intervalos) {
+    for (const linha of linhas) {
+      const intervalo = porCandidato[linha.numero] ?? null
+      if (intervalo !== null) meiasLarguras.push(intervalo.meiaLargura * 100)
+    }
+  }
+  const temIntervalo = meiasLarguras.length > 0
+
+  const maximoC = temIntervalo ? Math.max(...meiasLarguras) : 0
+  const passoC = passoDaPrecisao(maximoC)
+  const altoC = Math.max(passoC, Math.ceil(maximoC / passoC) * passoC)
+  // Escala vertical propria, ajustada aos dados. Nao ha eixo duplo com os
+  // outros graficos: a unidade aqui e outra, entao a figura e outra.
+  const escalaC = (valor: number): number =>
+    Y1_C - (Math.max(0, Math.min(altoC, valor)) / altoC) * (Y1_C - Y0_C)
+
+  const marcasC: number[] = []
+  const quantidadeC = Math.round(altoC / passoC)
+  for (let i = 0; i <= quantidadeC; i += 1) marcasC.push(i * passoC)
+
+  const nUltimo = ultimo === undefined ? null : finito(ultimo.n)
+
+  // -------------------------------------------------------------------------
   // Leitura por ponteiro e por teclado, compartilhada pelos dois graficos
   // -------------------------------------------------------------------------
 
   const ativo = indice === null ? null : (ordenados[indice] ?? null)
   const margemAtiva = indice === null ? null : (margem[indice] ?? null)
+  const intervaloAtivo = indice === null ? null : (intervalos[indice] ?? null)
 
   const localizar = (elemento: SVGSVGElement | null, clienteX: number): void => {
     if (elemento === null) return
@@ -326,7 +442,12 @@ export function SerieTemporal({
           .map((linha) => {
             const valor = finito(ativo.porCandidato[linha.numero])
             const texto = valor === null ? 'sem dado' : `${doisDecimais.format(valor)} por cento`
-            return `${linha.nomeUrna}: ${texto}`
+            const intervalo = intervaloAtivo === null ? null : (intervaloAtivo[linha.numero] ?? null)
+            const precisao =
+              intervalo === null
+                ? ''
+                : `, mais ou menos ${tresDecimais.format(intervalo.meiaLargura * 100)} ponto percentual`
+            return `${linha.nomeUrna}: ${texto}${precisao}`
           })
           .join('. ') +
         (margemAtiva === null || margemAtiva.diferenca === null || margemAtiva.ateMetade === null
@@ -334,7 +455,7 @@ export function SerieTemporal({
           : `. Diferença do primeiro para o segundo: ${umDecimal.format(margemAtiva.diferenca)} pontos. ` +
             `Líder em relação aos 50 por cento: ${umDecimal.format(margemAtiva.ateMetade)} pontos.`)
 
-  const larguraCaixa = 192
+  const larguraCaixa = temIntervalo ? 266 : 192
   const alturaCaixa = 26 + linhas.length * 17
   const xAtivo = ativo === null ? 0 : escalaX(ativo.pst)
   const xCaixa = xAtivo > X1 - larguraCaixa - 12 ? xAtivo - larguraCaixa - 10 : xAtivo + 10
@@ -472,6 +593,30 @@ export function SerieTemporal({
             Barra vertical à direita: variação recente da estimativa
           </text>
         )}
+
+        {/* Faixa de confianca de 95%. Nesta escala ela e imperceptivel, e esse
+            e o resultado correto: a meia-largura fica na terceira casa do
+            ponto percentual. A faixa nao e inflada para aparecer. */}
+        {temIntervalo &&
+          linhas.map((linha) => {
+            const amostras: AmostraDeFaixa[] = ordenados.map((ponto, i) => {
+              const intervalo = intervalos[i]?.[linha.numero] ?? null
+              return {
+                x: escalaX(ponto.pst),
+                alto: intervalo === null ? null : escalaA(intervalo.superior * 100),
+                baixo: intervalo === null ? null : escalaA(intervalo.inferior * 100),
+              }
+            })
+            return areas(amostras).map((caminho, i) => (
+              <path
+                key={`banda-${linha.numero}-${i}`}
+                d={caminho}
+                fill={linha.cor}
+                fillOpacity="0.25"
+                stroke="none"
+              />
+            ))
+          })}
 
         {linhas.map((linha) => {
           const amostras = ordenados.map((ponto) => {
@@ -624,6 +769,8 @@ export function SerieTemporal({
               </text>
               {linhas.map((linha, i) => {
                 const valor = finito(ativo.porCandidato[linha.numero])
+                const intervalo =
+                  intervaloAtivo === null ? null : (intervaloAtivo[linha.numero] ?? null)
                 const y = 32 + i * 17
                 return (
                   <g key={linha.numero}>
@@ -638,7 +785,7 @@ export function SerieTemporal({
                       {linha.nomeUrna}
                     </text>
                     <text
-                      x={larguraCaixa - 10}
+                      x={temIntervalo ? larguraCaixa - 94 : larguraCaixa - 10}
                       y={y}
                       textAnchor="end"
                       fontSize="12"
@@ -649,6 +796,21 @@ export function SerieTemporal({
                     >
                       {valor === null ? '—' : `${doisDecimais.format(valor)}%`}
                     </text>
+                    {temIntervalo && (
+                      <text
+                        x={larguraCaixa - 10}
+                        y={y}
+                        textAnchor="end"
+                        fontSize="11"
+                        dominantBaseline="middle"
+                        className="tabular"
+                        fill="var(--color-tinta-3)"
+                      >
+                        {intervalo === null
+                          ? '± —'
+                          : `± ${tresDecimais.format(intervalo.meiaLargura * 100)} p.p.`}
+                      </text>
+                    )}
                   </g>
                 )
               })}
@@ -773,7 +935,7 @@ export function SerieTemporal({
           fontSize="11"
           fill="var(--color-tinta-3)"
         >
-          Seções totalizadas: mesma escala horizontal dos dois gráficos
+          Seções totalizadas: mesma escala horizontal dos três gráficos
         </text>
 
         {[
@@ -925,6 +1087,225 @@ export function SerieTemporal({
           </g>
         )}
       </svg>
+
+      {temIntervalo ? (
+        <>
+          <h3 className="mt-5 mb-1 text-sm font-medium text-[var(--color-tinta-3)]">
+            Precisão: meia-largura do intervalo de 95%, em pontos percentuais
+          </h3>
+
+          <ul className="mb-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-[var(--color-tinta-2)]">
+            {linhas.map((linha) => (
+              <li key={linha.numero} className="flex items-center gap-2">
+                <svg width="16" height="2" aria-hidden="true" focusable="false">
+                  <rect width="16" height="2" fill={linha.cor} />
+                </svg>
+                {linha.nomeUrna}
+                <span className="text-[var(--color-tinta-3)]">{linha.partido}</span>
+              </li>
+            ))}
+          </ul>
+
+          <svg
+            ref={svgC}
+            viewBox={`0 0 ${LARGURA} ${ALTURA_C}`}
+            className="h-auto w-full rounded-xl border border-white/10 bg-[var(--color-superficie)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-tinta-2)]"
+            role="img"
+            tabIndex={0}
+            aria-label={
+              'Meia-largura do intervalo de confiança de 95%, em pontos percentuais, contra o ' +
+              'percentual de seções totalizadas, na mesma escala horizontal dos gráficos acima. ' +
+              'A escala vertical é própria. Quanto mais votos apurados, menor a meia-largura. ' +
+              'Use as setas para percorrer as coletas.'
+            }
+            onKeyDown={aoTeclado}
+            onPointerMove={(evento) => localizar(svgC.current, evento.clientX)}
+            onPointerLeave={() => setIndice(null)}
+          >
+            {marcasC.map((marca) => (
+              <g key={marca}>
+                <line
+                  x1={X0}
+                  x2={X1}
+                  y1={escalaC(marca)}
+                  y2={escalaC(marca)}
+                  stroke="var(--color-grade)"
+                  strokeWidth="1"
+                />
+                <text
+                  x={X0 - 8}
+                  y={escalaC(marca)}
+                  textAnchor="end"
+                  dominantBaseline="middle"
+                  fontSize="11"
+                  className="tabular"
+                  fill="var(--color-tinta-3)"
+                >
+                  {tresDecimais.format(marca)}
+                </text>
+              </g>
+            ))}
+
+            <line x1={X0} x2={X1} y1={Y1_C} y2={Y1_C} stroke="var(--color-base)" strokeWidth="1" />
+
+            {MARCAS_X.map((marca) => (
+              <text
+                key={marca}
+                x={escalaX(marca)}
+                y={Y1_C + 16}
+                textAnchor="middle"
+                fontSize="11"
+                className="tabular"
+                fill="var(--color-tinta-3)"
+              >
+                {marca}%
+              </text>
+            ))}
+            <text
+              x={(X0 + X1) / 2}
+              y={Y1_C + 36}
+              textAnchor="middle"
+              fontSize="11"
+              fill="var(--color-tinta-3)"
+            >
+              Seções totalizadas: mesma escala horizontal dos três gráficos
+            </text>
+
+            {linhas.map((linha) => {
+              const amostras = ordenados.map((ponto, i) => {
+                const intervalo = intervalos[i]?.[linha.numero] ?? null
+                return {
+                  x: escalaX(ponto.pst),
+                  y: intervalo === null ? null : escalaC(intervalo.meiaLargura * 100),
+                }
+              })
+              return segmentos(amostras).map((caminho, i) => (
+                <polyline
+                  key={`precisao-${linha.numero}-${i}`}
+                  points={caminho}
+                  fill="none"
+                  stroke={linha.cor}
+                  strokeWidth="2"
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                />
+              ))
+            })}
+
+            {(() => {
+              // O rotulo direto fica na ponta de cada curva, que nem sempre e o
+              // ultimo ponto da serie: a curva termina onde o n deixa de existir.
+              const marcas = linhas
+                .map((linha) => {
+                  for (let i = ordenados.length - 1; i >= 0; i -= 1) {
+                    const intervalo = intervalos[i]?.[linha.numero] ?? null
+                    const ponto = ordenados[i]
+                    if (intervalo !== null && ponto !== undefined) {
+                      return { linha, intervalo, x: escalaX(ponto.pst) }
+                    }
+                  }
+                  return null
+                })
+                .filter(
+                  (m): m is { linha: Linha; intervalo: IntervaloConfianca; x: number } =>
+                    m !== null,
+                )
+              if (marcas.length === 0) return null
+
+              const xPorNumero = new Map<string, number>(
+                marcas.map((marca) => [marca.linha.numero, marca.x]),
+              )
+              const rotulos = afastar(
+                marcas.map((marca) => ({
+                  numero: marca.linha.numero,
+                  cor: marca.linha.cor,
+                  texto: `${tresDecimais.format(marca.intervalo.meiaLargura * 100)} p.p.`,
+                  yReal: escalaC(marca.intervalo.meiaLargura * 100),
+                  yRotulo: escalaC(marca.intervalo.meiaLargura * 100),
+                })),
+                15,
+              )
+
+              return rotulos.map((rotulo) => (
+                <g key={rotulo.numero}>
+                  <circle
+                    cx={xPorNumero.get(rotulo.numero) ?? X1}
+                    cy={rotulo.yReal}
+                    r="4"
+                    fill={rotulo.cor}
+                    stroke="var(--color-superficie)"
+                    strokeWidth="2"
+                  />
+                  <text
+                    x={X1 + 14}
+                    y={rotulo.yRotulo}
+                    dominantBaseline="middle"
+                    fontSize="12"
+                    fontWeight="600"
+                    className="tabular"
+                    fill="var(--color-tinta)"
+                  >
+                    {rotulo.texto}
+                  </text>
+                </g>
+              ))
+            })()}
+
+            {ativo !== null && intervaloAtivo !== null && (
+              <g>
+                <line
+                  x1={xAtivo}
+                  x2={xAtivo}
+                  y1={Y0_C}
+                  y2={Y1_C}
+                  stroke="var(--color-tinta-3)"
+                  strokeWidth="1"
+                />
+                {linhas.map((linha) => {
+                  const intervalo = intervaloAtivo[linha.numero] ?? null
+                  if (intervalo === null) return null
+                  return (
+                    <circle
+                      key={linha.numero}
+                      cx={xAtivo}
+                      cy={escalaC(intervalo.meiaLargura * 100)}
+                      r="4"
+                      fill={linha.cor}
+                      stroke="var(--color-superficie)"
+                      strokeWidth="2"
+                    />
+                  )
+                })}
+              </g>
+            )}
+          </svg>
+
+          <p className="mt-2 text-xs text-[var(--color-tinta-3)]">
+            Nota de método. O intervalo de confiança de 95% segue a fórmula de Wald: a proporção
+            estimada mais ou menos 1,96 vezes a raiz quadrada do produto da proporção pelo seu
+            complemento dividido por n. O n é o total de votos nominais apurados no instante,
+            que{' '}
+            {nUltimo === null
+              ? 'não está disponível no último ponto da série'
+              : `vale ${inteiro.format(nUltimo)} votos no último ponto`}
+            . A apuração não é amostra aleatória: é enumeração parcial em ordem que não é
+            aleatória, porque seções e municípios pequenos totalizam antes dos grandes.
+          </p>
+
+          <p className="mt-2 text-xs text-[var(--color-tinta-3)]">
+            Este intervalo mede erro amostral, que não é a fonte dominante de incerteza nesta
+            leitura. Ele é coisa diferente da barra vertical do primeiro gráfico, que mostra a
+            variação recente da estimativa pós-estratificada. Um mede erro amostral sob hipótese
+            que não vale; o outro mede a oscilação da própria estimativa.
+          </p>
+        </>
+      ) : (
+        <p className="mt-5 text-xs text-[var(--color-tinta-3)]">
+          O intervalo de confiança de 95% não aparece nestes gráficos. Os pontos desta série não
+          trazem o total de votos nominais apurados, que é o n da fórmula. O cálculo volta assim
+          que o histórico passar a gravar esse número.
+        </p>
+      )}
 
       <p className="sr-only" aria-live="polite">
         {resumoDoAtivo}

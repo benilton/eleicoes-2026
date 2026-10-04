@@ -99,6 +99,10 @@ export function resumir(bruto, cargo) {
     pst: duasCasas(paraNumero(bruto.s?.pstn || bruto.s?.pst)),
     te: Math.round(paraNumero(bruto.e?.te)),
     pc: duasCasas(paraNumero(bruto.e?.pc)),
+    // Votos nominais apurados: denominador de pvap, e portanto o n do
+    // intervalo de confianca. Em cargo majoritario coincide com v.vv, mas o
+    // campo correto e v.vnom.
+    vnom: Math.round(paraNumero(bruto.v?.vnom)),
     candidatos,
   }
 }
@@ -176,7 +180,7 @@ export const historicoVazio = (eleicao, cargo) => ({
   cargo: String(cargo),
   atualizadoEm: null,
   candidatos: [],
-  br: { t: [], idg: [], pst: [], pct: [] },
+  br: { t: [], idg: [], pst: [], pct: [], vnom: [] },
   ufs: {},
 })
 
@@ -226,6 +230,10 @@ export function acrescentarPonto({
     t: [...alinhar(base.br?.t, n, tSegundos), tSegundos],
     idg: [...alinhar(base.br?.idg, n, resumoBr.idg), resumoBr.idg],
     pst: [...alinhar(base.br?.pst, n, 0), resumoBr.pst],
+    // Alinhada posicionalmente com t, idg, pst e pct. Arquivo antigo sem a
+    // serie entra preenchido com zero no passado, que a leitura trata como
+    // ponto sem n.
+    vnom: [...alinhar(base.br?.vnom, n, 0), resumoBr.vnom],
     pct: candidatos.map((cand, i) => {
       const serie = alinhar(base.br?.pct?.[i], n, 0)
       const atual = mapaBr.has(cand.numero)
@@ -310,6 +318,7 @@ export function descartar(historico) {
       t: porIndices(historico.br.t, indices),
       idg: porIndices(historico.br.idg, indices),
       pst: porIndices(historico.br.pst, indices),
+      vnom: porIndices(historico.br.vnom, indices),
       pct: historico.br.pct.map((serie) => porIndices(serie, indices)),
     },
     ufs,

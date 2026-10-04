@@ -10,9 +10,12 @@
   --color-tinta-3: #898781;
   --color-grade: #2c2c2a;
   --color-base: #383835;
+  /* Trio validado em conjunto na checagem de todos os pares, modo escuro,
+     sobre a superficie #1a1a19. Trocar qualquer um dos tres exige rodar o
+     validador de paleta de novo. */
   --color-serie-1: #3987e5;
-  --color-serie-2: #d95926;
-  --color-serie-3: #199e70;
+  --color-serie-2: #e66767;
+  --color-serie-3: #008300;
   --color-contexto: #4a4a46;
   --color-alerta: #fab219;
 }

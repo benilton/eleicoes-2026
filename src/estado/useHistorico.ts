@@ -25,6 +25,12 @@ export interface PontoHistorico {
   t: number
   pst: number
   porCandidato: Record<string, number>
+  /**
+   * Total de votos nominais apurados no instante, denominador do percentual.
+   * Opcional: arquivo de historico gravado antes da serie `vnom` nao tem o
+   * numero, e ponto sem ele apenas fica sem intervalo de confianca.
+   */
+  n?: number
 }
 
 /** Serie de uma unidade federativa, com cada candidatura em vetor proprio. */
@@ -57,6 +63,8 @@ interface SerieBrutaBr {
   idg?: string[]
   pst: number[]
   pct: number[][]
+  /** Votos nominais por ponto, alinhado posicionalmente com `t`. */
+  vnom?: number[]
 }
 
 interface SerieBrutaUf {
@@ -116,6 +124,12 @@ function ehSerieBrutaBr(valor: unknown, candidatos: number): valor is SerieBruta
   if (!ehVetorDeNumeros(valor.pst)) return false
   if (!ehMatrizDeNumeros(valor.pct)) return false
   if (valor.idg !== undefined && !ehVetorDeTextos(valor.idg)) return false
+  // `vnom` e opcional. Presente e fora do passo com `t`, o arquivo reprova: a
+  // leitura posicional atribuiria o denominador errado a algum ponto.
+  if (valor.vnom !== undefined) {
+    if (!ehVetorDeNumeros(valor.vnom)) return false
+    if (valor.vnom.length !== valor.t.length) return false
+  }
   if (valor.t.length !== valor.pst.length) return false
   return matrizAlinhada(valor.pct, candidatos, valor.t.length)
 }
@@ -160,11 +174,14 @@ function pontosDoRepositorio(arquivo: ArquivoHistorico): PontoHistorico[] {
       if (percentual === undefined) continue
       porCandidato[candidato.numero] = percentual
     }
-    pontos.push({
+    const ponto: PontoHistorico = {
       t: arquivo.br.t[indice] ?? 0,
       pst: arquivo.br.pst[indice] ?? 0,
       porCandidato,
-    })
+    }
+    const n = arquivo.br.vnom?.[indice]
+    if (typeof n === 'number' && Number.isFinite(n) && n > 0) ponto.n = n
+    pontos.push(ponto)
   }
   return pontos
 }
@@ -184,11 +201,16 @@ function seriesDasUfs(arquivo: ArquivoHistorico): Record<string, SerieUf> {
   return ufs
 }
 
-const pontoDoLocal = (ponto: PontoSerie): PontoHistorico => ({
-  t: ponto.horario,
-  pst: ponto.percentualSecoes,
-  porCandidato: ponto.porCandidato,
-})
+function pontoDoLocal(ponto: PontoSerie): PontoHistorico {
+  const convertido: PontoHistorico = {
+    t: ponto.horario,
+    pst: ponto.percentualSecoes,
+    porCandidato: ponto.porCandidato,
+  }
+  const n = ponto.votosNominais
+  if (typeof n === 'number' && Number.isFinite(n) && n > 0) convertido.n = n
+  return convertido
+}
 
 /**
  * Emenda as duas origens: primeiro o que veio do repositorio, depois os pontos

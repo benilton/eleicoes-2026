@@ -14,6 +14,12 @@ export interface PontoSerie {
   horario: number
   percentualSecoes: number
   porCandidato: Record<string, number>
+  /**
+   * Total de votos nominais apurados no instante, denominador do percentual.
+   * Opcional de proposito: ponto gravado antes desta versao nao tem o campo, e
+   * precisa continuar carregando. Ausente significa intervalo indisponivel.
+   */
+  votosNominais?: number
 }
 
 export interface EstadoSerieTemporal {
@@ -39,12 +45,16 @@ function montarPonto(apuracao: Apuracao): PontoSerie {
   for (const candidatura of apuracao.candidaturas) {
     porCandidato[candidatura.numero] = candidatura.percentual
   }
-  return {
+  const ponto: PontoSerie = {
     idg: apuracao.idGeracao,
     horario: Date.now(),
     percentualSecoes: apuracao.percentualSecoes,
     porCandidato,
   }
+  if (Number.isFinite(apuracao.votosNominais) && apuracao.votosNominais > 0) {
+    ponto.votosNominais = apuracao.votosNominais
+  }
+  return ponto
 }
 
 function promessaDeRequisicao<T>(requisicao: IDBRequest<T>): Promise<T> {
