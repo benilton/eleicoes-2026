@@ -29,7 +29,7 @@ export type Uf = (typeof UFS)[number] | 'br' | 'zz'
  * Abrangencias que o seletor oferece. O exterior entra aqui, nao em UFS,
  * porque UFS alimenta a varredura do mapa, e o exterior nao tem geometria.
  */
-export const ABRANGENCIAS: Uf[] = [...UFS, EXTERIOR]
+export const ABRANGENCIAS: Uf[] = [...UFS]
 
 export const rotuloAbrangencia = (uf: Uf): string =>
   uf === EXTERIOR ? 'Exterior' : uf.toUpperCase()

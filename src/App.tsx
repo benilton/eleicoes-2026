@@ -15,6 +15,8 @@ import TabelaEstados from './viz/TabelaEstados'
 import ConvergenciaUF from './viz/ConvergenciaUF'
 import Regioes from './viz/Regioes'
 import { Abas } from './ui/Abas'
+import TabelaExterior from './viz/TabelaExterior'
+import { useExterior } from './estado/useExterior'
 import SeletorMunicipio from './ui/SeletorMunicipio'
 import Comparativo from './viz/Comparativo'
 import { useComparativo } from './estado/useComparativo'
@@ -54,6 +56,16 @@ export default function App() {
   const [codigoMunicipio, setCodigoMunicipio] = useState<string | null>('62910')
   const base = useBaseEstatica()
   const comparativo = useComparativo(ufMunicipio, codigoMunicipio)
+
+  // Exterior: o agregado vem pelo mesmo agendador do painel nacional, e os
+  // 186 postos por varredura propria, em ritmo mais lento.
+  const exterior = useApuracao(ELEICAO.federal2, 'zz', CARGO.presidente)
+  const postosExterior = base.municipios.zz ?? []
+  const codigosExterior = useMemo(
+    () => postosExterior.map(([codigo]) => codigo),
+    [postosExterior],
+  )
+  const varreduraExterior = useExterior(codigosExterior)
   const [numeroMapa, setNumeroMapa] = useState<string | null>(null)
   const [modoMapa, setModoMapa] = useState<ModoMapa>('margem')
 
@@ -161,6 +173,47 @@ export default function App() {
               Detalhe: {comparativo.erro}
             </p>
           )}
+        </div>
+      ),
+    },
+    {
+      id: 'exterior',
+      rotulo: 'Exterior',
+      conteudo: (
+        <div className="space-y-8">
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Comparativo
+              titulo="Exterior"
+              subtitulo="Soma dos 186 postos"
+              primeiro={resumoPrimeiroTurno(base, 'zz')}
+              segundo={exterior.dados}
+            />
+            <Comparativo
+              titulo="Brasil"
+              subtitulo="Inclui os votos do exterior"
+              primeiro={resumoPrimeiroTurno(base, 'br')}
+              segundo={comparativo.brasil}
+            />
+          </div>
+
+          <TabelaExterior
+            postos={postosExterior}
+            porPosto={varreduraExterior.porPosto}
+            primeiroDe={(codigo) => resumoPrimeiroTurno(base, 'zz', codigo)}
+            numeros={numerosDestaque.length > 0 ? numerosDestaque : ['13', '22']}
+            nomeDe={(numero) =>
+              dados.candidaturas.find((c) => c.numero === numero)?.nomeUrna ?? numero
+            }
+            carregados={varreduraExterior.carregados}
+            total={varreduraExterior.total}
+          />
+
+          <p className="text-xs text-[var(--color-tinta-3)]">
+            A votação no exterior termina antes da brasileira, porém o TSE só
+            publica o resultado quando as urnas fecham no Brasil. Até lá os
+            arquivos existem zerados. Os postos são lidos em varredura própria,
+            a cada dois minutos, por serem 186 arquivos.
+          </p>
         </div>
       ),
     },
