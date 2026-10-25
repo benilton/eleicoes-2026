@@ -198,6 +198,7 @@ export default function App() {
 
           <TabelaExterior
             postos={postosExterior}
+            paises={base.paisesExterior.pais}
             porPosto={varreduraExterior.porPosto}
             primeiroDe={(codigo) => resumoPrimeiroTurno(base, 'zz', codigo)}
             numeros={numerosDestaque.length > 0 ? numerosDestaque : ['13', '22']}

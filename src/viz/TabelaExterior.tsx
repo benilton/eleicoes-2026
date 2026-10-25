@@ -5,6 +5,8 @@ import { corDaCandidatura } from './cores'
 
 export interface TabelaExteriorProps {
   postos: Municipio[]
+  /** Pais de cada posto, pelo codigo TSE. Vazio desativa o seletor de pais. */
+  paises: Record<string, string>
   porPosto: Record<string, Apuracao>
   /** Resultado final do 1o turno de cada posto, pelo codigo. */
   primeiroDe: (codigo: string) => ResumoTurno | null
@@ -31,6 +33,7 @@ const parte = (valor: number, total: number) => (total > 0 ? (valor / total) * 1
 interface Linha {
   codigo: string
   nome: string
+  pais: string
   apurado: number
   secoes: string
   votos: Record<string, number>
@@ -47,6 +50,7 @@ interface Linha {
  */
 export default function TabelaExterior({
   postos,
+  paises,
   porPosto,
   primeiroDe,
   numeros,
@@ -55,7 +59,18 @@ export default function TabelaExterior({
   total,
 }: TabelaExteriorProps) {
   const [filtro, setFiltro] = useState('')
+  const [pais, setPais] = useState('')
   const [soComApuracao, setSoComApuracao] = useState(true)
+
+  const listaPaises = useMemo(() => {
+    const conta = new Map<string, number>()
+    for (const [codigo] of postos) {
+      const nome = paises[codigo]
+      if (nome === undefined) continue
+      conta.set(nome, (conta.get(nome) ?? 0) + 1)
+    }
+    return [...conta.entries()].sort((a, b) => a[0].localeCompare(b[0], 'pt-BR'))
+  }, [postos, paises])
 
   const linhas = useMemo(() => {
     const saida: Linha[] = []
@@ -76,6 +91,7 @@ export default function TabelaExterior({
       saida.push({
         codigo,
         nome,
+        pais: paises[codigo] ?? '',
         apurado: apuracao?.percentualSecoes ?? 0,
         secoes: apuracao
           ? `${inteiro.format(apuracao.secoesTotalizadas)} de ${inteiro.format(apuracao.secoesTotais)}`
@@ -86,21 +102,39 @@ export default function TabelaExterior({
       })
     }
     return saida
-  }, [postos, porPosto, primeiroDe, numeros])
+  }, [postos, porPosto, primeiroDe, numeros, paises])
 
   const visiveis = useMemo(() => {
     const alvo = filtro.trim().toLocaleUpperCase('pt-BR')
     return linhas
       .filter((l) => (alvo.length === 0 ? true : l.nome.toLocaleUpperCase('pt-BR').includes(alvo)))
+      .filter((l) => (pais.length === 0 ? true : l.pais === pais))
       .filter((l) => (soComApuracao ? l.apurado > 0 : true))
       .sort((a, b) => b.apurado - a.apurado || a.nome.localeCompare(b.nome, 'pt-BR'))
-  }, [linhas, filtro, soComApuracao])
+  }, [linhas, filtro, pais, soComApuracao])
 
   const comApuracao = linhas.filter((l) => l.apurado > 0).length
 
   return (
     <section aria-label="Resultado por posto de votação no exterior">
       <div className="mb-3 flex flex-wrap items-center gap-3 text-xs text-[var(--color-tinta-3)]">
+        {listaPaises.length > 0 && (
+          <label className="flex items-center gap-2">
+            País
+            <select
+              value={pais}
+              onChange={(e) => setPais(e.target.value)}
+              className="max-w-[16rem] rounded-lg border border-white/10 bg-transparent px-3 py-1.5 text-sm text-[var(--color-tinta)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-tinta)]"
+            >
+              <option value="">Todos os países</option>
+              {listaPaises.map(([nome, quantos]) => (
+                <option key={nome} value={nome}>
+                  {nome} ({quantos})
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <input
           type="search"
           value={filtro}
@@ -137,6 +171,7 @@ export default function TabelaExterior({
             <thead>
               <tr className="text-xs text-[var(--color-tinta-3)]">
                 <th className="py-2 pr-3 text-left font-normal">Posto</th>
+                <th className="py-2 pr-3 text-left font-normal">País</th>
                 <th className="py-2 pr-3 text-right font-normal">Seções</th>
                 {numeros.map((numero) => (
                   <th key={numero} className="py-2 pr-3 text-right font-normal">
@@ -154,6 +189,9 @@ export default function TabelaExterior({
               {visiveis.map((linha) => (
                 <tr key={linha.codigo} className="border-t border-white/10">
                   <td className="py-2 pr-3 text-left">{linha.nome}</td>
+                  <td className="py-2 pr-3 text-left text-[var(--color-tinta-3)]">
+                    {linha.pais || '—'}
+                  </td>
                   <td className="py-2 pr-3 text-right text-[var(--color-tinta-3)]">
                     {doisDecimais.format(linha.apurado)}%
                     <span className="ml-1.5 text-[var(--color-tinta-3)]">{linha.secoes}</span>

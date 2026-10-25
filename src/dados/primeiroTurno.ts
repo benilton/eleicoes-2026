@@ -42,12 +42,31 @@ export type MapaMunicipios = Record<string, Municipio[]>
 /** Lista vazia estavel, para nao gerar identidade nova a cada render. */
 export const SEM_MUNICIPIOS: Municipio[] = []
 
+/**
+ * Pais de cada posto do exterior, pelo codigo TSE.
+ *
+ * A configuracao do TSE lista os postos so por nome de cidade. Este arquivo
+ * vem da lista de locais de votacao no exterior publicada pelo proprio TSE,
+ * casada pelo nome. O campo fonte registra a procedencia de cada linha:
+ * 'lista-tse' casou direto, 'lista-tse-grafia' casou por variante de grafia,
+ * 'a-confirmar' foi preenchido fora da lista e aguarda conferencia humana.
+ */
+export interface PaisesExterior {
+  pais: Record<string, string>
+  fonte: Record<string, string>
+}
+
 export interface BaseEstatica {
   primeiroTurno: ArquivoPrimeiroTurno | null
   municipios: MapaMunicipios
+  paisesExterior: PaisesExterior
 }
 
-const VAZIA: BaseEstatica = { primeiroTurno: null, municipios: {} }
+const VAZIA: BaseEstatica = {
+  primeiroTurno: null,
+  municipios: {},
+  paisesExterior: { pais: {}, fonte: {} },
+}
 
 let cache: BaseEstatica | null = null
 let promessa: Promise<BaseEstatica> | null = null
@@ -64,9 +83,15 @@ export function carregarBase(): Promise<BaseEstatica> {
     promessa = Promise.all([
       lerJson<ArquivoPrimeiroTurno>('primeiro-turno.json'),
       lerJson<MapaMunicipios>('municipios.json'),
+      // O agrupamento por pais e acessorio: se faltar, a tabela do exterior
+      // segue funcionando sem o seletor.
+      lerJson<PaisesExterior>('paises-exterior.json').catch(() => ({
+        pais: {},
+        fonte: {},
+      })),
     ])
-      .then(([primeiroTurno, municipios]) => {
-        cache = { primeiroTurno, municipios }
+      .then(([primeiroTurno, municipios, paisesExterior]) => {
+        cache = { primeiroTurno, municipios, paisesExterior }
         return cache
       })
       .catch(() => VAZIA)
