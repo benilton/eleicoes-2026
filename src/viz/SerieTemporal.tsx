@@ -277,15 +277,17 @@ export function SerieTemporal({
     }
   }
 
-  // Janela de leitura fixa. Numa disputa de segundo turno os valores vivem
-  // perto de cinquenta, entao um eixo que comeca em zero joga fora quase toda
-  // a altura do quadro e esconde a diferenca que importa. A janela padrao vai
-  // de 42 a 58 e so se abre quando algum valor sai dela, de modo que o
-  // desenho nao reescala a cada coleta.
-  const minimoA = valoresDeA.length > 0 ? Math.min(...valoresDeA) : JANELA_PISO
-  const maximoA = valoresDeA.length > 0 ? Math.max(...valoresDeA) : JANELA_TETO
-  const pisoA = Math.max(0, Math.min(JANELA_PISO, Math.floor((minimoA - 1) / 2) * 2))
-  const tetoA = Math.min(100, Math.max(JANELA_TETO, Math.ceil((maximoA + 1) / 2) * 2))
+  // Janela de leitura fixa, de 42 a 58 por cento. Numa disputa de segundo
+  // turno os valores vivem perto de cinquenta, entao um eixo que comeca em
+  // zero joga fora quase toda a altura do quadro e esconde a diferenca que
+  // importa.
+  const pisoA = JANELA_PISO
+  const tetoA = JANELA_TETO
+  // A janela e fixa por decisao de leitura: o desenho nunca reescala, entao
+  // duas visitas em horas diferentes sao comparaveis a olho. O preco e que
+  // valor fora da janela encosta na borda, o que o aviso abaixo do grafico
+  // declara em vez de esconder.
+  const foraDaJanela = valoresDeA.some((v) => v < pisoA || v > tetoA)
   const passoA = (tetoA - pisoA) / 4
   const marcasA = [0, 1, 2, 3, 4].map((i) => pisoA + i * passoA)
   const escalaA = (valor: number): number =>
@@ -831,19 +833,29 @@ export function SerieTemporal({
 
       {temEstimativa && (
         <p className="mt-2 text-xs text-[var(--color-tinta-3)]">
-          A estimativa pondera cada unidade federativa pelo eleitorado e pelo comparecimento,
-          o que corrige o fato de algumas unidades totalizarem mais rápido que outras. Ela não
-          corrige o fato de municípios pequenos totalizarem antes dos grandes dentro de cada
-          unidade. A barra vertical é a variação recente da própria estimativa: não é intervalo
-          de confiança e não mede erro amostral.
+          A estimativa é a projeção por variação entre turnos, a mesma da guia Brasil.
+          Onde já houve apuração vale o resultado observado; o que falta é imputado pelo
+          nível daquela unidade no 1º turno somado à variação comum, e o agregado pondera
+          cada unidade pelo volume de votos dela. A barra vertical é a dispersão da
+          variação entre unidades, reduzida pelo que já foi apurado: mede heterogeneidade,
+          não erro amostral, e não é intervalo de confiança nem probabilidade de vitória.
+          A guia Metodologia traz as fórmulas e as limitações.
           {estimativa !== null && !estimativa.confiavel && (
             <>
               {' '}
-              A cobertura ainda é baixa: a estimativa cobre{' '}
-              {umDecimal.format(estimativa.coberturaEleitorado * 100)}% do eleitorado, em{' '}
-              {estimativa.ufsComDado} unidades com seção totalizada, então ela ainda deve mudar.
+              A cobertura ainda é baixa: a projeção cobre{' '}
+              {umDecimal.format(estimativa.coberturaEleitorado * 100)}% do volume de votos,
+              com {estimativa.ufsComDado} unidades entrando no cálculo da variação, então
+              ela ainda deve mudar.
             </>
           )}
+        </p>
+      )}
+
+      {foraDaJanela && (
+        <p className="mt-2 text-xs text-[var(--color-tinta-3)]">
+          O eixo vertical é fixo entre {pisoA}% e {tetoA}%. Algum ponto da série fica
+          fora dessa janela e aparece encostado na borda do quadro.
         </p>
       )}
 
