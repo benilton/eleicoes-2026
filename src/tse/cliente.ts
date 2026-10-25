@@ -9,6 +9,8 @@ import { urlResultado, type Uf } from './urls'
  */
 const INTERVALO_MINIMO_MS = 4_000
 const ultimaChamada = new Map<string, number>()
+/** Ultimo resultado por alvo, servido a quem chega dentro da janela. */
+const ultimoResultado = new Map<string, Apuracao>()
 
 export class ErroTse extends Error {
   readonly status?: number
@@ -28,12 +30,19 @@ export async function buscarResultado(
   municipio?: string,
 ): Promise<Apuracao> {
   const chave = `${eleicao}:${uf}${municipio ?? ''}:${cargo}`
-  const agora = Date.now()
-  const anterior = ultimaChamada.get(chave) ?? 0
-  if (agora - anterior < INTERVALO_MINIMO_MS) {
-    throw new ErroTse(`Chamada a ${chave} bloqueada pelo limite local de taxa`)
+
+  // Dois consumidores podem pedir o mesmo alvo, caso do Brasil, que aparece
+  // no painel nacional e no comparativo. Dentro da janela o segundo recebe o
+  // resultado guardado em vez de um erro: o alvo e o mesmo, o dado tambem.
+  const espera = INTERVALO_MINIMO_MS - (Date.now() - (ultimaChamada.get(chave) ?? 0))
+  if (espera > 0) {
+    const guardado = ultimoResultado.get(chave)
+    if (guardado) return guardado
+    await new Promise((pronto) => setTimeout(pronto, espera))
+    const depois = ultimoResultado.get(chave)
+    if (depois) return depois
   }
-  ultimaChamada.set(chave, agora)
+  ultimaChamada.set(chave, Date.now())
 
   const resposta = await fetch(urlResultado(eleicao, uf, cargo, municipio), {
     cache: 'no-cache',
@@ -43,7 +52,9 @@ export async function buscarResultado(
     throw new ErroTse(`TSE respondeu ${resposta.status} para ${chave}`, resposta.status)
   }
   const bruto = (await resposta.json()) as TseArquivoUnificado
-  return normalizar(bruto, cargo, uf)
+  const normalizado = normalizar(bruto, cargo, uf)
+  ultimoResultado.set(chave, normalizado)
+  return normalizado
 }
 
 /** Recuo exponencial com teto de cinco minutos. */
