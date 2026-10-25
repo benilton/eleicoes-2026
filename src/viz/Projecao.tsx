@@ -49,16 +49,26 @@ export default function Projecao({ projecao, candidaturas }: ProjecaoProps) {
   return (
     <section
       aria-label="Projeção do resultado por variação entre turnos"
-      className="rounded-xl border border-white/10 p-5"
+      className="rounded-xl border-2 border-dashed border-[var(--color-tinta-3)]/50 bg-[var(--color-superficie)]/40 p-5"
     >
-      <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-sm font-medium text-[var(--color-tinta-3)]">
-          Projeção por variação entre turnos
-        </h2>
-        <p className="tabular text-xs text-[var(--color-tinta-3)]">
-          {doisDecimais.format(cobertura)}% do volume de votos coberto ·{' '}
-          {projecao.unidadesNaVariacao} de 27 unidades na variação
-        </p>
+      <div className="mb-4">
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          <span className="rounded-full border border-[var(--color-alerta)] px-2.5 py-0.5 text-[0.7rem] font-semibold tracking-wide text-[var(--color-alerta)] uppercase">
+            Projeção
+          </span>
+          <span className="text-xs text-[var(--color-tinta-3)]">
+            estimativa estatística, não é resultado apurado
+          </span>
+        </div>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-sm font-medium text-[var(--color-tinta-2)]">
+            Projeção do resultado final por variação entre turnos
+          </h2>
+          <p className="tabular text-xs text-[var(--color-tinta-3)]">
+            {doisDecimais.format(cobertura)}% do volume de votos coberto ·{' '}
+            {projecao.unidadesNaVariacao} de 27 unidades na variação
+          </p>
+        </div>
       </div>
 
       {!projecao.confiavel && (

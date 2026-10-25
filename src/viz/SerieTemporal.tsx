@@ -63,6 +63,10 @@ const Y1_C = 152
 const MARCAS_X = [0, 25, 50, 75, 100]
 const LIMITE_SEGUNDO_TURNO = 50
 
+/** Janela padrao do eixo vertical do grafico principal, em percentual. */
+const JANELA_PISO = 42
+const JANELA_TETO = 58
+
 const escalaX = (percentualSecoes: number): number =>
   X0 + (Math.max(0, Math.min(100, percentualSecoes)) / 100) * (X1 - X0)
 
@@ -273,14 +277,20 @@ export function SerieTemporal({
     }
   }
 
-  const maximoA = valoresDeA.length > 0 ? Math.max(...valoresDeA) : LIMITE_SEGUNDO_TURNO
-  // O teto nunca fica abaixo de 60 para que a linha dos 50 por cento caiba
-  // dentro do quadro desde o primeiro ponto, sem reescalar a cada coleta.
-  const tetoA = Math.min(100, Math.max(60, Math.ceil((maximoA * 1.1) / 10) * 10))
-  const passoA = tetoA / 5
-  const marcasA = [0, 1, 2, 3, 4, 5].map((i) => i * passoA)
+  // Janela de leitura fixa. Numa disputa de segundo turno os valores vivem
+  // perto de cinquenta, entao um eixo que comeca em zero joga fora quase toda
+  // a altura do quadro e esconde a diferenca que importa. A janela padrao vai
+  // de 42 a 58 e so se abre quando algum valor sai dela, de modo que o
+  // desenho nao reescala a cada coleta.
+  const minimoA = valoresDeA.length > 0 ? Math.min(...valoresDeA) : JANELA_PISO
+  const maximoA = valoresDeA.length > 0 ? Math.max(...valoresDeA) : JANELA_TETO
+  const pisoA = Math.max(0, Math.min(JANELA_PISO, Math.floor((minimoA - 1) / 2) * 2))
+  const tetoA = Math.min(100, Math.max(JANELA_TETO, Math.ceil((maximoA + 1) / 2) * 2))
+  const passoA = (tetoA - pisoA) / 4
+  const marcasA = [0, 1, 2, 3, 4].map((i) => pisoA + i * passoA)
   const escalaA = (valor: number): number =>
-    Y1_A - (Math.max(0, Math.min(tetoA, valor)) / tetoA) * (Y1_A - Y0_A)
+    Y1_A -
+    ((Math.max(pisoA, Math.min(tetoA, valor)) - pisoA) / (tetoA - pisoA)) * (Y1_A - Y0_A)
 
   const ultimo = ordenados[ordenados.length - 1]
   const xUltimo = ultimo === undefined ? X0 : escalaX(ultimo.pst)

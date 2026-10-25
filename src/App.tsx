@@ -4,7 +4,7 @@ import { useApuracao } from './estado/useApuracao'
 import { useMapaUF } from './estado/useMapaUF'
 import { useSerieTemporal } from './estado/useSerieTemporal'
 import { useHistorico } from './estado/useHistorico'
-import { estimarPosEstratificado, faixaRecente } from './analise/projecao'
+import type { Estimativa } from './analise/projecao'
 import { agregarPorRegiao } from './analise/regioes'
 import FaixaEstado from './viz/FaixaEstado'
 import BarrasCandidatos from './viz/BarrasCandidatos'
@@ -86,21 +86,6 @@ export default function App() {
 
   const apuracaoUf = ufSelecionada ? (porUf[ufSelecionada] ?? null) : null
 
-  const estimativa = useMemo(
-    () => estimarPosEstratificado(porUf, dados?.eleitoresAptos),
-    [porUf, dados],
-  )
-
-  const faixa = useMemo(() => {
-    const eleitorado: Record<string, number> = {}
-    const comparecimento: Record<string, number> = {}
-    for (const [uf, apuracao] of Object.entries(porUf)) {
-      eleitorado[uf] = apuracao.eleitoresAptos
-      comparecimento[uf] = apuracao.percentualComparecimento
-    }
-    return faixaRecente(historico.ufs, eleitorado, comparecimento, 6)
-  }, [historico.ufs, porUf])
-
   const regioes = useMemo(() => agregarPorRegiao(porUf), [porUf])
 
   // Projecao por variacao entre turnos. Depende do mapa das 27 unidades, que
@@ -113,6 +98,32 @@ export default function App() {
     () => projetarPorVariacao(porUf, base, numerosProjecao),
     [porUf, base, numerosProjecao],
   )
+
+  // A guia Convergência usa a mesma projeção da guia Brasil. Dois estimadores
+  // diferentes no mesmo site dariam dois números para a mesma pergunta, e o
+  // leitor não teria como saber em qual acreditar.
+  const estimativa = useMemo<Estimativa | null>(() => {
+    if (projecao === null) return null
+    return {
+      porCandidato: projecao.porCandidato,
+      coberturaEleitorado: projecao.cobertura,
+      ufsComDado: projecao.unidadesNaVariacao,
+      confiavel: projecao.confiavel,
+    }
+  }, [projecao])
+
+  const faixa = useMemo(() => {
+    const saida: Record<string, { min: number; max: number }> = {}
+    if (projecao === null) return saida
+    for (const [numero, valor] of Object.entries(projecao.porCandidato)) {
+      const meia = projecao.faixa[numero] ?? 0
+      saida[numero] = {
+        min: Math.max(0, valor - meia),
+        max: Math.min(100, valor + meia),
+      }
+    }
+    return saida
+  }, [projecao])
 
   // Percentual do 1o turno por unidade federativa, para o balao do mapa.
   const primeiroPorUf = useMemo(() => {
@@ -243,11 +254,13 @@ export default function App() {
       conteudo: (
         <div className="space-y-10">
           <FaixaEstado apuracao={dados} defasado={defasado} />
-          <Projecao projecao={projecao} candidaturas={dados.candidaturas} />
           <BarrasCandidatos
             candidaturas={dados.candidaturas}
             titulo="Votos nominais apurados no Brasil"
           />
+          {/* Depois do resultado apurado, nunca antes: o número real tem
+              precedência de leitura sobre a estimativa. */}
+          <Projecao projecao={projecao} candidaturas={dados.candidaturas} />
           <section aria-label="Todos os números do Brasil">
             <h2 className={tituloSecao}>Todos os números</h2>
             <TabelaCompleta apuracao={dados} />

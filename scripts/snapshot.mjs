@@ -174,13 +174,128 @@ function alinhar(serie, comprimento, padrao) {
 const ultimoOu = (serie, padrao) =>
   Array.isArray(serie) && serie.length > 0 ? serie[serie.length - 1] : padrao
 
+// ---------------------------------------------------------------------------
+// Projecao por variacao entre turnos
+// ---------------------------------------------------------------------------
+
+/** Resultado congelado do 1o turno, gerado por scripts/baixar-1turno.mjs. */
+const CAMINHO_PRIMEIRO_TURNO =
+  process.env.SNAPSHOT_PRIMEIRO_TURNO ?? path.join('public', 'primeiro-turno.json')
+
+/** Fracao minima de secoes totalizadas para a unidade entrar na variacao. */
+const COBERTURA_MINIMA = 0.05
+
+/**
+ * Mesma conta de src/analise/swing.ts, repetida aqui de proposito, pela mesma
+ * razao que as convencoes de URL sao: este script roda fora do pacote e nao
+ * importa a camada TypeScript. Mexer num lado exige mexer no outro.
+ *
+ * Devolve a projecao nacional, a meia faixa e a cobertura, todas em
+ * percentual, ou nulo quando nao ha como calcular.
+ */
+export function projetarPorVariacao(resumosUf, primeiroTurno, numeros) {
+  if (primeiroTurno === null || typeof primeiroTurno !== 'object') return null
+  if (!Array.isArray(numeros) || numeros.length === 0) return null
+
+  const finalistas = Array.isArray(primeiroTurno.finalistas) ? primeiroTurno.finalistas : []
+  const colunaDe = (numero) => {
+    const i = finalistas.indexOf(numero)
+    return i === -1 ? -1 : i + 1
+  }
+
+  const unidades = []
+  for (const uf of UFS) {
+    const vetor = primeiroTurno.uf?.[uf]
+    if (!Array.isArray(vetor) || !(vetor[0] > 0)) continue
+
+    const p1 = {}
+    let completo = true
+    for (const numero of numeros) {
+      const coluna = colunaDe(numero)
+      if (coluna < 0) { completo = false; break }
+      p1[numero] = vetor[coluna] / vetor[0]
+    }
+    if (!completo) continue
+
+    const resumo = resumosUf[uf]
+    const fracao = resumo
+      ? Math.max(0, Math.min(1, paraNumero(resumo.pst) / 100))
+      : 0
+
+    const p2 = {}
+    for (const numero of numeros) {
+      const cand = resumo?.candidatos?.find((c) => c.numero === numero)
+      p2[numero] = cand ? paraNumero(cand.pct) / 100 : 0
+    }
+
+    unidades.push({ peso: vetor[0], fracao, p1, p2 })
+  }
+  if (unidades.length === 0) return null
+
+  const usadas = unidades.filter((u) => u.fracao >= COBERTURA_MINIMA)
+  const variacao = {}
+  const desvio = {}
+  for (const numero of numeros) {
+    let soma = 0
+    let pesos = 0
+    for (const u of usadas) {
+      const w = u.peso * u.fracao
+      soma += w * (u.p2[numero] - u.p1[numero])
+      pesos += w
+    }
+    variacao[numero] = pesos > 0 ? soma / pesos : 0
+
+    let quadrados = 0
+    for (const u of usadas) {
+      const w = u.peso * u.fracao
+      const d = u.p2[numero] - u.p1[numero] - variacao[numero]
+      quadrados += w * d * d
+    }
+    desvio[numero] = pesos > 0 ? Math.sqrt(quadrados / pesos) : 0
+  }
+
+  let pesoTotal = 0
+  let pesoApurado = 0
+  for (const u of unidades) {
+    pesoTotal += u.peso
+    pesoApurado += u.peso * u.fracao
+  }
+  if (!(pesoTotal > 0)) return null
+  const cobertura = pesoApurado / pesoTotal
+
+  const bruto = {}
+  for (const numero of numeros) {
+    let acumulado = 0
+    for (const u of unidades) {
+      const imputado = Math.max(0, Math.min(1, u.p1[numero] + variacao[numero]))
+      acumulado += u.peso * (u.fracao * u.p2[numero] + (1 - u.fracao) * imputado)
+    }
+    bruto[numero] = acumulado / pesoTotal
+  }
+  const somaProjetada = numeros.reduce((s, n) => s + bruto[n], 0)
+
+  const proj = {}
+  const faixa = {}
+  for (const numero of numeros) {
+    proj[numero] = somaProjetada > 0 ? duasCasas((bruto[numero] / somaProjetada) * 100) : 0
+    faixa[numero] = duasCasas(desvio[numero] * (1 - cobertura) * 100)
+  }
+
+  return {
+    proj,
+    faixa,
+    cobertura: duasCasas(cobertura * 100),
+    unidades: usadas.length,
+  }
+}
+
 /** Arquivo de historico vazio. */
 export const historicoVazio = (eleicao, cargo) => ({
   eleicao: String(eleicao),
   cargo: String(cargo),
   atualizadoEm: null,
   candidatos: [],
-  br: { t: [], idg: [], pst: [], pct: [], vnom: [] },
+  br: { t: [], idg: [], pst: [], pct: [], vnom: [], proj: [], faixa: [], cob: [] },
   ufs: {},
 })
 
@@ -198,6 +313,7 @@ export function acrescentarPonto({
   cargo,
   resumoBr,
   resumosUf = {},
+  projecao = null,
   tSegundos = Math.floor(Date.now() / 1000),
   atualizadoEm = new Date().toISOString(),
 }) {
@@ -241,6 +357,21 @@ export function acrescentarPonto({
         : ultimoOu(serie, 0)
       return [...serie, atual]
     }),
+    // Projecao, meia faixa e cobertura, alinhadas posicionalmente com as
+    // demais series. Arquivo antigo sem elas entra preenchido com zero no
+    // passado. Sao gravadas para que a evolucao da estimativa possa ser lida
+    // depois da noite, coisa que nenhuma consulta ao TSE reconstroi.
+    proj: candidatos.map((cand, i) => {
+      const serie = alinhar(base.br?.proj?.[i], n, 0)
+      const atual = projecao?.proj?.[cand.numero]
+      return [...serie, atual === undefined ? ultimoOu(serie, 0) : atual]
+    }),
+    faixa: candidatos.map((cand, i) => {
+      const serie = alinhar(base.br?.faixa?.[i], n, 0)
+      const atual = projecao?.faixa?.[cand.numero]
+      return [...serie, atual === undefined ? ultimoOu(serie, 0) : atual]
+    }),
+    cob: [...alinhar(base.br?.cob, n, 0), projecao?.cobertura ?? 0],
   }
 
   const ufsAnteriores = base.ufs && typeof base.ufs === 'object' ? base.ufs : {}
@@ -398,7 +529,35 @@ export async function executar(opcoes = {}) {
     }
   }
 
-  const proximo = acrescentarPonto({ anterior, eleicao, cargo, resumoBr, resumosUf })
+  // O 1o turno congelado alimenta a projecao. Se o arquivo faltar, o ponto e
+  // gravado sem projecao, e nao com projecao errada.
+  let primeiroTurno = null
+  try {
+    primeiroTurno = JSON.parse(await readFile(CAMINHO_PRIMEIRO_TURNO, 'utf8'))
+  } catch (erro) {
+    console.warn(`[aviso] sem o 1o turno em ${CAMINHO_PRIMEIRO_TURNO}: ${erro.message}`)
+  }
+
+  const numerosProjetados = Array.isArray(primeiroTurno?.finalistas)
+    ? primeiroTurno.finalistas
+    : resumoBr.candidatos.slice(0, 2).map((c) => c.numero)
+
+  const projecao = projetarPorVariacao(resumosUf, primeiroTurno, numerosProjetados)
+  if (projecao !== null) {
+    const partes = numerosProjetados
+      .map((n) => `${n}=${virgula(projecao.proj[n])}% +-${virgula(projecao.faixa[n])}`)
+      .join(' ')
+    console.log(`projecao: ${partes} | cobertura ${virgula(projecao.cobertura)}%`)
+  }
+
+  const proximo = acrescentarPonto({
+    anterior,
+    eleicao,
+    cargo,
+    resumoBr,
+    resumosUf,
+    projecao,
+  })
   if (proximo === null) {
     console.log(`idg ${resumoBr.idg} inalterado, nada a gravar`)
     await anotarSaidaDoActions({ escreveu: 'false', pst: virgula(resumoBr.pst) })
