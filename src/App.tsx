@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import type { Apuracao } from './tse/tipos'
 import { useApuracao } from './estado/useApuracao'
 import { useMapaUF } from './estado/useMapaUF'
 import { useSerieTemporal } from './estado/useSerieTemporal'
@@ -30,6 +31,8 @@ const doisDecimais = new Intl.NumberFormat('pt-BR', {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 })
+
+const inteiro = new Intl.NumberFormat('pt-BR')
 
 const tituloSecao = 'mb-4 text-sm font-medium text-[var(--color-tinta-3)]'
 
@@ -115,7 +118,7 @@ export default function App() {
   if (!dados) {
     return (
       <div className="mx-auto min-h-full max-w-5xl px-4 py-8 sm:px-6">
-        <Cabecalho />
+        <Cabecalho apuracao={dados} />
         <p className="text-sm text-[var(--color-tinta-2)]">
           {carregando ? 'Consultando o TSE…' : (erro ?? 'Sem dados do TSE no momento.')}
         </p>
@@ -399,7 +402,7 @@ export default function App() {
 
   return (
     <div className="mx-auto min-h-full max-w-5xl px-4 py-8 sm:px-6">
-      <Cabecalho />
+      <Cabecalho apuracao={dados} />
       <Abas abas={abas} />
 
       {erro && (
@@ -424,7 +427,17 @@ export default function App() {
   )
 }
 
-function Cabecalho() {
+/**
+ * Cabecalho com o andamento nacional sempre a vista.
+ *
+ * Cada guia mostra o andamento do proprio nivel, porem quem esta lendo o
+ * exterior ou um municipio perde a referencia do pais. A faixa fica aqui,
+ * fora das guias, para acompanhar qualquer leitura.
+ */
+function Cabecalho({ apuracao }: { apuracao: Apuracao | null }) {
+  const percentual =
+    apuracao === null ? 0 : Math.max(0, Math.min(100, apuracao.percentualSecoes))
+
   return (
     <header className="mb-6">
       <h1 className="text-xl font-semibold tracking-tight">
@@ -434,6 +447,37 @@ function Cabecalho() {
         Dados do Tribunal Superior Eleitoral. Projeto independente, sem vínculo com a
         Justiça Eleitoral.
       </p>
+
+      {apuracao !== null && (
+        <div className="mt-4">
+          <div className="tabular flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-xs text-[var(--color-tinta-3)]">
+            <span>
+              Brasil:{' '}
+              <b className="font-semibold text-[var(--color-tinta)]">
+                {doisDecimais.format(apuracao.percentualSecoes)}%
+              </b>{' '}
+              das seções totalizadas ·{' '}
+              {inteiro.format(apuracao.secoesTotalizadas)} de{' '}
+              {inteiro.format(apuracao.secoesTotais)} urnas
+            </span>
+            <span>arquivo do TSE gerado em {apuracao.geradoEm}</span>
+          </div>
+          <div
+            className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-[var(--color-grade)]"
+            role="progressbar"
+            aria-label="Progresso da totalização no Brasil"
+            aria-valuenow={Number(percentual.toFixed(2))}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuetext={`${doisDecimais.format(apuracao.percentualSecoes)}% das seções totalizadas no Brasil`}
+          >
+            <div
+              className="h-full rounded-full bg-[var(--color-tinta-2)] transition-[width] duration-500"
+              style={{ width: `${percentual}%` }}
+            />
+          </div>
+        </div>
+      )}
     </header>
   )
 }
