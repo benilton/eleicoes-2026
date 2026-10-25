@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { lazy, Suspense, useMemo, useState } from 'react'
 import type { Apuracao } from './tse/tipos'
 import { useApuracao } from './estado/useApuracao'
 import { useMapaUF } from './estado/useMapaUF'
@@ -19,7 +19,9 @@ import { Abas } from './ui/Abas'
 import TabelaExterior from './viz/TabelaExterior'
 import { useExterior } from './estado/useExterior'
 import Projecao from './viz/Projecao'
-import Metodologia from './ui/Metodologia'
+// Carregada sob demanda: o KaTeX, a folha de estilo e as fontes dele so
+// chegam ao visitante que abrir a guia de metodologia.
+const Metodologia = lazy(() => import('./ui/Metodologia'))
 import { projetarPorVariacao } from './analise/swing'
 import SeletorMunicipio from './ui/SeletorMunicipio'
 import Comparativo from './viz/Comparativo'
@@ -403,7 +405,17 @@ export default function App() {
   abas.push({
     id: 'metodologia',
     rotulo: 'Metodologia',
-    conteudo: <Metodologia />,
+    conteudo: (
+      <Suspense
+        fallback={
+          <p className="text-sm text-[var(--color-tinta-3)]">
+            Carregando a metodologia…
+          </p>
+        }
+      >
+        <Metodologia />
+      </Suspense>
+    ),
   })
 
   // Ordem de leitura das guias. Fica aqui, e nao na ordem em que os objetos
