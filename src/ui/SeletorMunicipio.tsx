@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { SEM_MUNICIPIOS, type MapaMunicipios } from '../dados/primeiroTurno'
-import { UFS, type Uf } from '../tse/urls'
+import { ABRANGENCIAS, EXTERIOR, rotuloAbrangencia, type Uf } from '../tse/urls'
 
 export interface SeletorMunicipioProps {
   municipios: MapaMunicipios
@@ -43,16 +43,16 @@ export function SeletorMunicipio({
           value={uf}
           onChange={(evento) => aoTrocarUf(evento.target.value as Uf)}
         >
-          {UFS.map((sigla) => (
+          {ABRANGENCIAS.map((sigla) => (
             <option key={sigla} value={sigla}>
-              {sigla.toUpperCase()}
+              {rotuloAbrangencia(sigla)}
             </option>
           ))}
         </select>
       </label>
 
       <label className="flex items-center gap-2 text-sm text-[var(--color-tinta-3)]">
-        Município
+        {uf === EXTERIOR ? 'Posto' : 'Município'}
         <select
           className={`${CLASSE_SELECT} max-w-[16rem]`}
           value={codigo ?? ''}

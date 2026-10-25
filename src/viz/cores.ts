@@ -17,7 +17,7 @@ const CORES_FIXAS: Record<string, { variavel: string; hex: string }> = {
  * parecem inteiro em ordem numerica crescente. Acrescentar uma linha a
  * CORES_FIXAS exige acrescentar o numero aqui tambem.
  */
-const NUMEROS_FIXOS: string[] = ['22', '13', '70']
+const NUMEROS_FIXOS: string[] = ['13', '22', '70']
 
 /**
  * Mapa estavel de cor por numero de candidatura.
@@ -138,6 +138,25 @@ export function temIdentidade(numero: string): boolean {
  */
 export function numerosComIdentidade(): string[] {
   return [...fixasPresentes, ...ordemReserva]
+}
+
+/**
+ * Ordem de apresentacao das candidaturas.
+ *
+ * Os numeros de NUMEROS_FIXOS vem primeiro, na ordem daquela tabela, e os
+ * demais seguem por voto decrescente. A posicao na tela fica estavel durante
+ * a noite: uma ultrapassagem troca os numeros, nunca a ordem de leitura.
+ */
+export function ordenarParaExibir<T extends { numero: string; votos: number }>(
+  itens: readonly T[],
+): T[] {
+  const posicao = (numero: string): number => {
+    const i = NUMEROS_FIXOS.indexOf(numero)
+    return i === -1 ? NUMEROS_FIXOS.length : i
+  }
+  return [...itens].sort(
+    (a, b) => posicao(a.numero) - posicao(b.numero) || b.votos - a.votos,
+  )
 }
 
 /** Verdadeiro depois que a ordem foi fixada. */

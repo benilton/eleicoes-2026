@@ -1,6 +1,6 @@
 import type { ResumoTurno } from '../dados/primeiroTurno'
 import type { Apuracao } from '../tse/tipos'
-import { corDaCandidatura, registrarOrdem } from './cores'
+import { corDaCandidatura, ordenarParaExibir, registrarOrdem } from './cores'
 
 export interface ComparativoProps {
   titulo: string
@@ -65,7 +65,7 @@ export function Comparativo({ titulo, subtitulo, primeiro, segundo }: Comparativ
   }
 
   registrarOrdem(segundo.candidaturas)
-  const ordenadas = [...segundo.candidaturas].sort((a, b) => b.votos - a.votos)
+  const ordenadas = ordenarParaExibir(segundo.candidaturas)
   const iniciou = segundo.secoesTotalizadas > 0
 
   return (

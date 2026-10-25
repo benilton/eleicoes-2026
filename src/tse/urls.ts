@@ -20,7 +20,19 @@ export const UFS = [
   'pb','pe','pi','pr','rj','rn','ro','rr','rs','sc','se','sp','to',
 ] as const
 
-export type Uf = (typeof UFS)[number] | 'br'
+/** Codigo do exterior na divulgacao do TSE. Os postos vem como municipios. */
+export const EXTERIOR = 'zz'
+
+export type Uf = (typeof UFS)[number] | 'br' | 'zz'
+
+/**
+ * Abrangencias que o seletor oferece. O exterior entra aqui, nao em UFS,
+ * porque UFS alimenta a varredura do mapa, e o exterior nao tem geometria.
+ */
+export const ABRANGENCIAS: Uf[] = [...UFS, EXTERIOR]
+
+export const rotuloAbrangencia = (uf: Uf): string =>
+  uf === EXTERIOR ? 'Exterior' : uf.toUpperCase()
 
 const pad = (valor: string, tamanho: number) => valor.padStart(tamanho, '0')
 

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { Candidatura } from '../tse/tipos'
-import { corDaCandidatura, registrarOrdem } from './cores'
+import { corDaCandidatura, ordenarParaExibir, registrarOrdem } from './cores'
 
 export interface BarrasCandidatosProps {
   candidaturas: Candidatura[]
@@ -37,7 +37,7 @@ export function BarrasCandidatos({
   // para que a primeira pintura ja saia com a cor definitiva.
   registrarOrdem(candidaturas)
 
-  const ordenadas = [...candidaturas].sort((a, b) => b.votos - a.votos)
+  const ordenadas = ordenarParaExibir(candidaturas)
 
   return (
     <section aria-label={titulo}>

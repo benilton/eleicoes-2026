@@ -19,7 +19,7 @@ import SeletorMunicipio from './ui/SeletorMunicipio'
 import Comparativo from './viz/Comparativo'
 import { useComparativo } from './estado/useComparativo'
 import { resumoPrimeiroTurno, useBaseEstatica } from './dados/primeiroTurno'
-import type { Uf } from './tse/urls'
+import { rotuloAbrangencia, type Uf } from './tse/urls'
 import type { Aba } from './ui/Abas'
 import { numerosComIdentidade, registrarOrdem } from './viz/cores'
 import { CARGO, ELEICAO } from './tse/urls'
@@ -83,6 +83,23 @@ export default function App() {
 
   const regioes = useMemo(() => agregarPorRegiao(porUf), [porUf])
 
+  // Percentual do 1o turno por unidade federativa, para o balao do mapa.
+  const primeiroPorUf = useMemo(() => {
+    const mapa: Record<string, Record<string, number>> = {}
+    const arquivo = base.primeiroTurno
+    if (!arquivo) return mapa
+    for (const sigla of Object.keys(arquivo.uf)) {
+      const resumo = resumoPrimeiroTurno(base, sigla)
+      if (!resumo || resumo.votosNominais <= 0) continue
+      const porNumero: Record<string, number> = {}
+      for (const [numero, votos] of Object.entries(resumo.porNumero)) {
+        porNumero[numero] = (votos / resumo.votosNominais) * 100
+      }
+      mapa[sigla] = porNumero
+    }
+    return mapa
+  }, [base])
+
   if (!dados) {
     return (
       <div className="mx-auto min-h-full max-w-5xl px-4 py-8 sm:px-6">
@@ -115,13 +132,13 @@ export default function App() {
           <div className="grid gap-4 lg:grid-cols-3">
             <Comparativo
               titulo={nomeMunicipio}
-              subtitulo={ufMunicipio.toUpperCase()}
+              subtitulo={rotuloAbrangencia(ufMunicipio)}
               primeiro={resumoPrimeiroTurno(base, ufMunicipio, codigoMunicipio)}
               segundo={comparativo.municipio}
             />
             <Comparativo
-              titulo={ufMunicipio.toUpperCase()}
-              subtitulo="Unidade federativa"
+              titulo={rotuloAbrangencia(ufMunicipio)}
+              subtitulo={ufMunicipio === 'zz' ? 'Votos no exterior' : 'Unidade federativa'}
               primeiro={resumoPrimeiroTurno(base, ufMunicipio)}
               segundo={comparativo.uf}
             />
@@ -218,6 +235,7 @@ export default function App() {
               numeroPercentual={numeroEfetivo}
               ufSelecionada={ufSelecionada}
               aoSelecionar={(uf) => setUfSelecionada(uf === ufSelecionada ? null : uf)}
+              percentuaisPrimeiroTurno={primeiroPorUf}
             />
           </section>
 

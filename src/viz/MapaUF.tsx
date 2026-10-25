@@ -134,6 +134,11 @@ export interface MapaUFProps {
   numeroPercentual: string | null
   ufSelecionada: string | null
   aoSelecionar: (uf: string) => void
+  /**
+   * Percentual do 1o turno por sigla e por numero de candidatura. Alimenta a
+   * comparacao no balao do mapa. Vem do arquivo estatico, nao do TSE ao vivo.
+   */
+  percentuaisPrimeiroTurno?: Record<string, Record<string, number>>
 }
 
 const doisDecimais = new Intl.NumberFormat('pt-BR', {
@@ -142,6 +147,12 @@ const doisDecimais = new Intl.NumberFormat('pt-BR', {
 })
 
 const inteiro = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 })
+
+const comSinal = new Intl.NumberFormat('pt-BR', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+  signDisplay: 'exceptZero',
+})
 
 function hexParaRgb(hex: string): [number, number, number] | null {
   const m = /^#([0-9a-f]{6})$/i.exec(hex.trim())
@@ -417,6 +428,7 @@ export default function MapaUF({
   numeroPercentual,
   ufSelecionada,
   aoSelecionar,
+  percentuaisPrimeiroTurno,
 }: MapaUFProps) {
   const [malha, setMalha] = useState<Malha | null>(null)
   const [falhaMalha, setFalhaMalha] = useState(false)
@@ -872,6 +884,21 @@ export default function MapaUF({
                     <span className="tabular w-14 text-right text-[var(--color-tinta-2)]">
                       {doisDecimais.format(linha.percentual)}%
                     </span>
+                    {(() => {
+                      const antes =
+                        percentuaisPrimeiroTurno?.[dica.detalhe.sigla]?.[linha.numero]
+                      if (antes === undefined) return null
+                      return (
+                        <span className="tabular w-32 text-right text-[var(--color-tinta-3)]">
+                          1º turno {doisDecimais.format(antes)}%
+                          {linha.percentual > 0 && (
+                            <b className="ml-1 font-semibold text-[var(--color-tinta-2)]">
+                              {comSinal.format(linha.percentual - antes)}
+                            </b>
+                          )}
+                        </span>
+                      )
+                    })()}
                   </li>
                 ))}
               </ul>

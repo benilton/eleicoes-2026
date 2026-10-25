@@ -1,4 +1,5 @@
 import type { Apuracao } from '../tse/tipos'
+import { ordenarParaExibir } from './cores'
 
 export interface TabelaCompletaProps {
   apuracao: Apuracao
@@ -23,7 +24,7 @@ const numerica = `${celula} tabular text-right`
  * tabulares para que as colunas alinhem.
  */
 export function TabelaCompleta({ apuracao }: TabelaCompletaProps) {
-  const ordenadas = [...apuracao.candidaturas].sort((a, b) => b.votos - a.votos)
+  const ordenadas = ordenarParaExibir(apuracao.candidaturas)
 
   return (
     <section aria-label="Tabela completa da apuração" className="space-y-8">

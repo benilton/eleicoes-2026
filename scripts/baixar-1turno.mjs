@@ -101,9 +101,10 @@ const cfgUrl = `${BASE}/${CICLO}/${ELEICAO_CFG}/config/mun-e${pad(ELEICAO_CFG, 6
 const cfg = await ler(cfgUrl)
 if (!cfg) throw new Error('configuracao de municipios indisponivel')
 
+// O exterior entra como 'zz': a votacao la ja terminou, e os 186 postos
+// aparecem no seletor como se fossem municipios, que e como o TSE os publica.
 const UFS = cfg.abr
   .map((a) => ({ sigla: String(a.cd).toLowerCase(), municipios: a.mu }))
-  .filter((a) => a.sigla !== 'zz')
   .sort((a, b) => a.sigla.localeCompare(b.sigla))
 
 const mapaMunicipios = {}
