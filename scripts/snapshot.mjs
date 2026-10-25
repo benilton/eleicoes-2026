@@ -357,7 +357,7 @@ async function anotarSaidaDoActions(pares) {
 }
 
 export async function executar(opcoes = {}) {
-  const eleicao = String(opcoes.eleicao ?? process.env.SNAPSHOT_ELEICAO ?? '6257')
+  const eleicao = String(opcoes.eleicao ?? process.env.SNAPSHOT_ELEICAO ?? '6258')
   const cargo = String(opcoes.cargo ?? process.env.SNAPSHOT_CARGO ?? '1')
   const dirHistorico =
     opcoes.dirHistorico ?? process.env.SNAPSHOT_DIR_HISTORICO ?? 'historico'

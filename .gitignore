@@ -9,3 +9,6 @@ dist-ssr
 *.log
 npm-debug.log*
 _to_delete
+
+# Pasta criada pelo aplicativo do Claude, fora do projeto
+Claude outputs/

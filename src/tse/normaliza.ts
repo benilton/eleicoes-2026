@@ -13,9 +13,16 @@ export const paraNumero = (valor: string | undefined): number => {
  * Achata as tres camadas de aninhamento do arquivo do TSE.
  * A hierarquia e carg[] -> agr[] -> par[] -> cand[].
  */
-export function normalizar(bruto: TseArquivoUnificado, cargo: string): Apuracao {
+export function normalizar(
+  bruto: TseArquivoUnificado,
+  cargo: string,
+  ufFoto?: Uf,
+): Apuracao {
   const dadosCargo = bruto.carg.find((c) => c.cd === cargo) ?? bruto.carg[0]
   const uf = bruto.cdabr as Uf
+  // Em arquivo municipal o cdabr e o codigo do municipio, que nao serve de
+  // diretorio de fotos. Quem chama informa a sigla verdadeira.
+  const ufDaFoto = ufFoto ?? uf
 
   const candidaturas: Candidatura[] = (dadosCargo?.agr ?? [])
     .flatMap((agremiacao) =>
@@ -29,7 +36,7 @@ export function normalizar(bruto: TseArquivoUnificado, cargo: string): Apuracao 
           votos: paraNumero(cand.vap),
           percentual: paraNumero(cand.pvapn || cand.pvap),
           eleito: cand.e === 's',
-          fotoUrl: urlFoto(bruto.ele, uf, cand.sqcand),
+          fotoUrl: urlFoto(bruto.ele, ufDaFoto, cand.sqcand),
         })),
       ),
     )
@@ -53,7 +60,7 @@ export function normalizar(bruto: TseArquivoUnificado, cargo: string): Apuracao 
     percentualAbstencao: paraNumero(bruto.e?.pa),
     votosValidos: paraNumero(bruto.v?.vv),
     votosBrancos: paraNumero(bruto.v?.vb),
-    votosNulos: paraNumero(bruto.v?.vn),
+    votosNulos: paraNumero(bruto.v?.tvn || bruto.v?.vn),
     votosNominais: paraNumero(bruto.v?.vnom),
     candidaturas,
   }

@@ -70,8 +70,12 @@ export interface TseVotacao {
   vv: string
   vb: string
   pvb: string
+  /** Nulos sem o nulo tecnico. O total divulgado pelo TSE e tvn. */
   vn: string
   pvn: string
+  /** Total de votos nulos, incluindo o nulo tecnico. */
+  tvn?: string
+  ptvn?: string
   vnom: string
 }
 

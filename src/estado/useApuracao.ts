@@ -3,7 +3,10 @@ import { atrasoDeRecuo, buscarResultado } from '../tse/cliente'
 import type { Apuracao } from '../tse/tipos'
 import type { Uf } from '../tse/urls'
 
-const PERIODO_MS = 60_000
+// A borda da CDN do TSE guarda cada arquivo por cerca de sessenta segundos.
+// Consultar a cada oito segundos nao torna o dado mais novo, porem faz a
+// virada aparecer logo que a borda renova, em vez de ate um minuto depois.
+const PERIODO_MS = 8_000
 const LIMITE_DEFASAGEM_MS = 180_000
 
 export interface EstadoApuracao {

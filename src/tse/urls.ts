@@ -24,10 +24,27 @@ export type Uf = (typeof UFS)[number] | 'br'
 
 const pad = (valor: string, tamanho: number) => valor.padStart(tamanho, '0')
 
-/** Monta a URL do arquivo de resultado unificado, com quebra de cache. */
-export function urlResultado(eleicao: string, uf: Uf, cargo: string): string {
-  const arquivo = `${uf}-c${pad(cargo, 4)}-e${pad(eleicao, 6)}-u.json`
-  return `${BASE_TSE}/${CICLO}/${eleicao}/dados/${uf}/${arquivo}?nocache=${Date.now()}`
+/**
+ * Monta a URL do arquivo de resultado unificado.
+ *
+ * O parametro municipio e o codigo TSE de cinco digitos. Quando presente, a
+ * abrangencia do nome do arquivo passa a ser a sigla seguida do codigo; o
+ * diretorio continua sendo o da unidade federativa.
+ *
+ * Nao ha mais quebra de cache por query. Medicao em 25/10/2026: tres pedidos
+ * com valores diferentes de nocache devolveram max-age de 50, 12 e 52, logo a
+ * chave de cache da borda ignora a query. O parametro so impedia a
+ * revalidacao condicional, sem ganhar frescor.
+ */
+export function urlResultado(
+  eleicao: string,
+  uf: Uf,
+  cargo: string,
+  municipio?: string,
+): string {
+  const abrangencia = municipio ? `${uf}${municipio}` : uf
+  const arquivo = `${abrangencia}-c${pad(cargo, 4)}-e${pad(eleicao, 6)}-u.json`
+  return `${BASE_TSE}/${CICLO}/${eleicao}/dados/${uf}/${arquivo}`
 }
 
 export function urlFoto(eleicao: string, uf: Uf, sqcand: string): string {

@@ -15,6 +15,11 @@ import TabelaEstados from './viz/TabelaEstados'
 import ConvergenciaUF from './viz/ConvergenciaUF'
 import Regioes from './viz/Regioes'
 import { Abas } from './ui/Abas'
+import SeletorMunicipio from './ui/SeletorMunicipio'
+import Comparativo from './viz/Comparativo'
+import { useComparativo } from './estado/useComparativo'
+import { resumoPrimeiroTurno, useBaseEstatica } from './dados/primeiroTurno'
+import type { Uf } from './tse/urls'
 import type { Aba } from './ui/Abas'
 import { numerosComIdentidade, registrarOrdem } from './viz/cores'
 import { CARGO, ELEICAO } from './tse/urls'
@@ -27,21 +32,30 @@ const doisDecimais = new Intl.NumberFormat('pt-BR', {
 const tituloSecao = 'mb-4 text-sm font-medium text-[var(--color-tinta-3)]'
 
 export default function App() {
+  // Eleicao ativa do painel. 6258 e o 2o turno federal. O 1o turno, usado como
+  // linha de base do comparativo, nao e consultado ao vivo: vem congelado de
+  // public/primeiro-turno.json, gerado por scripts/baixar-1turno.mjs.
   const { dados, carregando, erro, defasado } = useApuracao(
-    ELEICAO.federal1,
+    ELEICAO.federal2,
     'br',
     CARGO.presidente,
   )
-  const { porUf, carregadas, total } = useMapaUF(ELEICAO.federal1, CARGO.presidente)
+  const { porUf, carregadas, total } = useMapaUF(ELEICAO.federal2, CARGO.presidente)
   const { serie } = useSerieTemporal(dados)
-  const historico = useHistorico(ELEICAO.federal1, CARGO.presidente, serie)
+  const historico = useHistorico(ELEICAO.federal2, CARGO.presidente, serie)
 
   // O estado de selecao mora aqui, e nao dentro de uma aba: Abas monta
   // apenas o painel ativo, entao um estado guardado la dentro se perderia
   // na troca de aba.
   const [ufSelecionada, setUfSelecionada] = useState<string | null>(null)
+  // Mora aqui pelo mesmo motivo do comentario acima: Abas monta apenas o
+  // painel ativo, entao estado guardado dentro da aba se perderia na troca.
+  const [ufMunicipio, setUfMunicipio] = useState<Uf>('sp')
+  const [codigoMunicipio, setCodigoMunicipio] = useState<string | null>('62910')
+  const base = useBaseEstatica()
+  const comparativo = useComparativo(ufMunicipio, codigoMunicipio)
   const [numeroMapa, setNumeroMapa] = useState<string | null>(null)
-  const [modoMapa, setModoMapa] = useState<ModoMapa>('lider')
+  const [modoMapa, setModoMapa] = useState<ModoMapa>('margem')
 
   // Idempotente. Precisa rodar antes de numerosComIdentidade, porque a aba
   // de Estados pode ser a primeira a montar quando a pagina abre em #estados.
@@ -80,7 +94,59 @@ export default function App() {
     )
   }
 
+  const listaMunicipios = base.municipios[ufMunicipio] ?? []
+  const nomeMunicipio =
+    listaMunicipios.find(([cd]) => cd === codigoMunicipio)?.[1] ?? 'Município'
+
   const abas: Aba[] = [
+    {
+      id: 'municipio',
+      rotulo: 'Município',
+      conteudo: (
+        <div>
+          <SeletorMunicipio
+            municipios={base.municipios}
+            uf={ufMunicipio}
+            codigo={codigoMunicipio}
+            aoTrocarUf={setUfMunicipio}
+            aoTrocarMunicipio={setCodigoMunicipio}
+          />
+
+          <div className="grid gap-4 lg:grid-cols-3">
+            <Comparativo
+              titulo={nomeMunicipio}
+              subtitulo={ufMunicipio.toUpperCase()}
+              primeiro={resumoPrimeiroTurno(base, ufMunicipio, codigoMunicipio)}
+              segundo={comparativo.municipio}
+            />
+            <Comparativo
+              titulo={ufMunicipio.toUpperCase()}
+              subtitulo="Unidade federativa"
+              primeiro={resumoPrimeiroTurno(base, ufMunicipio)}
+              segundo={comparativo.uf}
+            />
+            <Comparativo
+              titulo="Brasil"
+              primeiro={resumoPrimeiroTurno(base, 'br')}
+              segundo={comparativo.brasil}
+            />
+          </div>
+
+          <p className="mt-4 text-xs text-[var(--color-tinta-3)]">
+            O 2º turno vem do TSE a cada oito segundos. O 1º turno é o resultado
+            final de 04/10/2026, congelado no repositório, então o comparativo
+            aparece sem espera.
+          </p>
+
+          {comparativo.erro && (
+            <p className="mt-2 text-sm text-[var(--color-alerta)]">
+              Falha na última consulta ao TSE. Mantendo o último dado válido.
+              Detalhe: {comparativo.erro}
+            </p>
+          )}
+        </div>
+      ),
+    },
     {
       id: 'brasil',
       rotulo: 'Brasil',
@@ -106,7 +172,7 @@ export default function App() {
           <section aria-label="Resultado por unidade federativa">
             <div className="mb-4 flex flex-wrap items-baseline justify-between gap-3">
               <h2 className="text-sm font-medium text-[var(--color-tinta-3)]">
-                Percentual por unidade federativa
+                Mapa por unidade federativa
               </h2>
               <p className="text-xs text-[var(--color-tinta-3)]">
                 {carregadas} de {total} unidades carregadas

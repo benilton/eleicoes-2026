@@ -7,7 +7,7 @@ import { urlResultado, type Uf } from './urls'
  * O TSE bloqueia o IP por dez minutos acima de cem requisicoes por segundo,
  * entao o limite fica no cliente, nao apenas no agendador.
  */
-const INTERVALO_MINIMO_MS = 30_000
+const INTERVALO_MINIMO_MS = 4_000
 const ultimaChamada = new Map<string, number>()
 
 export class ErroTse extends Error {
@@ -25,8 +25,9 @@ export async function buscarResultado(
   uf: Uf,
   cargo: string,
   sinal?: AbortSignal,
+  municipio?: string,
 ): Promise<Apuracao> {
-  const chave = `${eleicao}:${uf}:${cargo}`
+  const chave = `${eleicao}:${uf}${municipio ?? ''}:${cargo}`
   const agora = Date.now()
   const anterior = ultimaChamada.get(chave) ?? 0
   if (agora - anterior < INTERVALO_MINIMO_MS) {
@@ -34,15 +35,15 @@ export async function buscarResultado(
   }
   ultimaChamada.set(chave, agora)
 
-  const resposta = await fetch(urlResultado(eleicao, uf, cargo), {
-    cache: 'no-store',
+  const resposta = await fetch(urlResultado(eleicao, uf, cargo, municipio), {
+    cache: 'no-cache',
     signal: sinal,
   })
   if (!resposta.ok) {
     throw new ErroTse(`TSE respondeu ${resposta.status} para ${chave}`, resposta.status)
   }
   const bruto = (await resposta.json()) as TseArquivoUnificado
-  return normalizar(bruto, cargo)
+  return normalizar(bruto, cargo, uf)
 }
 
 /** Recuo exponencial com teto de cinco minutos. */

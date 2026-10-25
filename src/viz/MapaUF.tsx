@@ -16,6 +16,28 @@ const RAMPA_AZUL = ['#cde2fb', '#9ec5f4', '#6da7ec', '#3987e5', '#256abf'] as co
 const COR_BASE_PADRAO = '#3987e5'
 const CLASSES = RAMPA_AZUL.length
 
+// Rampa divergente do 2o turno: vermelho de um lado, azul do outro, com um
+// passo neutro no meio. As pontas sao as mesmas cores de identidade de
+// cores.ts, #e66767 e #3987e5, misturadas com branco nos passos intermediarios
+// e com preto no passo extremo, pelos mesmos fatores da rampa sequencial.
+// Para outra eleicao, troque apenas esta tabela e os dois numeros abaixo.
+const RAMPA_MARGEM = [
+  '#b35050', '#e66767', '#ed9090',
+  '#cfcac4',
+  '#6da7ec', '#3987e5', '#256abf',
+] as const
+const CLASSES_MARGEM = RAMPA_MARGEM.length
+
+/** Candidatura pintada de azul, no lado positivo da margem. */
+const NUMERO_AZUL = '22'
+/** Candidatura pintada de vermelho, no lado negativo da margem. */
+const NUMERO_VERMELHO = '13'
+
+// Dominio fixo da margem, em pontos percentuais, saturando nas pontas.
+// Fixo de proposito: dominio derivado do maximo corrente faria o mapa inteiro
+// repintar a cada coleta, e tiraria a comparacao entre dois instantes.
+const DOMINIO_MARGEM = 40
+
 /** Unidade sem dado, ou sem nenhuma secao totalizada. */
 const COR_SEM_DADO = 'var(--color-grade)'
 
@@ -53,7 +75,7 @@ const LARGURA_GLIFO = 0.62
 /** Folga entre a caixa do rotulo e o contorno da unidade. */
 const FOLGA_SIGLA = 1.2
 
-export type ModoMapa = 'lider' | 'percentual'
+export type ModoMapa = 'lider' | 'percentual' | 'margem'
 
 type Situacao = 'lider' | 'empate' | 'outra' | 'sem-dado'
 
@@ -522,6 +544,26 @@ export default function MapaUF({
   const corBase = numeroPercentual === null ? COR_BASE_PADRAO : hexDaCandidatura(numeroPercentual)
   const rampa = useMemo(() => rampaDe(corBase), [corBase])
 
+  // Margem em pontos percentuais entre as duas candidaturas do 2o turno.
+  // Positiva quando o azul esta na frente, negativa quando o vermelho esta.
+  const margens = useMemo(() => {
+    const valores: Record<string, number | null> = {}
+    for (const [sigla, apuracao] of Object.entries(dadosPorUf)) {
+      if (apuracao.secoesTotalizadas <= 0) {
+        valores[sigla] = null
+        continue
+      }
+      const azul = apuracao.candidaturas.find((c) => c.numero === NUMERO_AZUL)
+      const vermelho = apuracao.candidaturas.find((c) => c.numero === NUMERO_VERMELHO)
+      if (azul === undefined || vermelho === undefined) {
+        valores[sigla] = null
+        continue
+      }
+      valores[sigla] = azul.percentual - vermelho.percentual
+    }
+    return valores
+  }, [dadosPorUf])
+
   const percentuais = useMemo(() => {
     const valores: Record<string, number | null> = {}
     if (numeroPercentual === null) return valores
@@ -556,6 +598,20 @@ export default function MapaUF({
 
   /** Preenchimento e tinta da sigla andam juntos: a tinta e medida sobre o preenchimento. */
   const pinturaDe = (sigla: string): { cor: string; tinta: string | null } => {
+    if (modo === 'margem') {
+      const margem = margens[sigla]
+      if (typeof margem !== 'number' || !Number.isFinite(margem)) {
+        return { cor: COR_SEM_DADO, tinta: TINTA_CLARA }
+      }
+      const preso = Math.max(-DOMINIO_MARGEM, Math.min(DOMINIO_MARGEM, margem))
+      const razao = (preso + DOMINIO_MARGEM) / (2 * DOMINIO_MARGEM)
+      const classe = Math.min(
+        CLASSES_MARGEM - 1,
+        Math.max(0, Math.floor(razao * CLASSES_MARGEM)),
+      )
+      return { cor: RAMPA_MARGEM[classe], tinta: tintaSobre(RAMPA_MARGEM[classe]) }
+    }
+
     if (modo === 'percentual') {
       const valor = valorDe(sigla)
       if (valor === null || escala === null) return { cor: COR_SEM_DADO, tinta: TINTA_CLARA }
@@ -625,9 +681,11 @@ export default function MapaUF({
       : `${nomeDe(numeroPercentual)} (${numeroPercentual})`
 
   const legenda =
-    modo === 'lider'
-      ? 'Candidatura mais votada em cada unidade federativa'
-      : `Percentual de votos de ${rotuloPercentual} por unidade federativa`
+    modo === 'margem'
+      ? `Margem entre ${nomeDe(NUMERO_AZUL)} e ${nomeDe(NUMERO_VERMELHO)}: o tom escurece conforme a diferença cresce, e satura em ${DOMINIO_MARGEM} pontos`
+      : modo === 'lider'
+        ? 'Candidatura mais votada em cada unidade federativa'
+        : `Percentual de votos de ${rotuloPercentual} por unidade federativa`
 
   const controles = (
     <div
@@ -637,6 +695,7 @@ export default function MapaUF({
     >
       {(
         [
+          ['margem', 'Margem entre os dois'],
           ['lider', 'Líder'],
           ['percentual', 'Percentual de um candidato'],
         ] as const
@@ -694,9 +753,11 @@ export default function MapaUF({
           className="mx-auto h-auto w-full max-w-xl"
           role="group"
           aria-label={
-            modo === 'lider'
-              ? 'Mapa do Brasil com a candidatura mais votada em cada unidade federativa. Selecione uma unidade para detalhar.'
-              : `Mapa do Brasil com o percentual de ${rotuloPercentual} em cada unidade federativa. Selecione uma unidade para detalhar.`
+            modo === 'margem'
+              ? 'Mapa do Brasil com a margem entre as duas candidaturas em cada unidade federativa. Selecione uma unidade para detalhar.'
+              : modo === 'lider'
+                ? 'Mapa do Brasil com a candidatura mais votada em cada unidade federativa. Selecione uma unidade para detalhar.'
+                : `Mapa do Brasil com o percentual de ${rotuloPercentual} em cada unidade federativa. Selecione uma unidade para detalhar.`
           }
         >
           <g>
@@ -845,6 +906,30 @@ export default function MapaUF({
               aria-hidden="true"
             />
             <span>outra candidatura, ou empate</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span
+              className="h-3 w-6 border border-white/10"
+              style={{ backgroundColor: COR_SEM_DADO }}
+              aria-hidden="true"
+            />
+            <span>sem dado</span>
+          </div>
+        </div>
+      ) : modo === 'margem' ? (
+        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-[var(--color-tinta-3)]">
+          <div className="flex items-center gap-2">
+            <span className="tabular">
+              {nomeDe(NUMERO_VERMELHO)} +{DOMINIO_MARGEM}
+            </span>
+            <span className="flex" aria-hidden="true">
+              {RAMPA_MARGEM.map((cor) => (
+                <span key={cor} className="h-3 w-6" style={{ backgroundColor: cor }} />
+              ))}
+            </span>
+            <span className="tabular">
+              +{DOMINIO_MARGEM} {nomeDe(NUMERO_AZUL)}
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <span
