@@ -382,6 +382,21 @@ export default function App() {
     },
   ]
 
+  // Ordem de leitura das guias. Fica aqui, e nao na ordem em que os objetos
+  // foram escritos acima, para que mexer na sequencia seja uma linha so.
+  // A primeira da lista e a que abre quando nao ha fragmento no endereco.
+  const ORDEM_DAS_ABAS = [
+    'brasil',
+    'regioes',
+    'estados',
+    'municipio',
+    'exterior',
+    'convergencia',
+  ]
+  abas.sort(
+    (a, b) => ORDEM_DAS_ABAS.indexOf(a.id) - ORDEM_DAS_ABAS.indexOf(b.id),
+  )
+
   return (
     <div className="mx-auto min-h-full max-w-5xl px-4 py-8 sm:px-6">
       <Cabecalho />
