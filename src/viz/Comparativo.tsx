@@ -81,6 +81,10 @@ export function Comparativo({ titulo, subtitulo, primeiro, segundo }: Comparativ
           {subtitulo ? `${subtitulo} · ` : ''}
           {inteiro.format(segundo.secoesTotalizadas)} de{' '}
           {inteiro.format(segundo.secoesTotais)} seções
+          {/* A hora de geração vem do TSE e não é a mesma em todos os
+              arquivos: o nacional costuma ir na frente dos estaduais e dos
+              municipais. Mostrá-la deixa essa defasagem visível. */}
+          {segundo.geradoEm ? ` · TSE ${segundo.geradoEm.split(' ')[1] ?? ''}` : ''}
         </p>
       </div>
 
