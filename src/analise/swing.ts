@@ -50,9 +50,9 @@ export interface Projecao {
 }
 
 /** Fracao minima de secoes totalizadas para a unidade entrar na variacao. */
-const COBERTURA_MINIMA = 0.05
+export const COBERTURA_MINIMA = 0.05
 /** Cobertura a partir da qual a projecao deixa de ser mera indicacao. */
-const COBERTURA_CONFIAVEL = 0.2
+export const COBERTURA_CONFIAVEL = 0.2
 
 const finito = (valor: number | undefined): number =>
   typeof valor === 'number' && Number.isFinite(valor) ? valor : 0

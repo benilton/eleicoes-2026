@@ -19,6 +19,7 @@ import { Abas } from './ui/Abas'
 import TabelaExterior from './viz/TabelaExterior'
 import { useExterior } from './estado/useExterior'
 import Projecao from './viz/Projecao'
+import Metodologia from './ui/Metodologia'
 import { projetarPorVariacao } from './analise/swing'
 import SeletorMunicipio from './ui/SeletorMunicipio'
 import Comparativo from './viz/Comparativo'
@@ -399,6 +400,12 @@ export default function App() {
     },
   ]
 
+  abas.push({
+    id: 'metodologia',
+    rotulo: 'Metodologia',
+    conteudo: <Metodologia />,
+  })
+
   // Ordem de leitura das guias. Fica aqui, e nao na ordem em que os objetos
   // foram escritos acima, para que mexer na sequencia seja uma linha so.
   // A primeira da lista e a que abre quando nao ha fragmento no endereco.
@@ -409,6 +416,7 @@ export default function App() {
     'municipio',
     'exterior',
     'convergencia',
+    'metodologia',
   ]
   abas.sort(
     (a, b) => ORDEM_DAS_ABAS.indexOf(a.id) - ORDEM_DAS_ABAS.indexOf(b.id),
