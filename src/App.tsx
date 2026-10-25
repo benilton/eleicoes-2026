@@ -18,6 +18,8 @@ import Regioes from './viz/Regioes'
 import { Abas } from './ui/Abas'
 import TabelaExterior from './viz/TabelaExterior'
 import { useExterior } from './estado/useExterior'
+import Projecao from './viz/Projecao'
+import { projetarPorVariacao } from './analise/swing'
 import SeletorMunicipio from './ui/SeletorMunicipio'
 import Comparativo from './viz/Comparativo'
 import { useComparativo } from './estado/useComparativo'
@@ -97,6 +99,17 @@ export default function App() {
   }, [historico.ufs, porUf])
 
   const regioes = useMemo(() => agregarPorRegiao(porUf), [porUf])
+
+  // Projecao por variacao entre turnos. Depende do mapa das 27 unidades, que
+  // e varrido a cada 180 segundos, e do 1o turno congelado.
+  const numerosProjecao = useMemo(
+    () => (dados?.candidaturas ?? []).slice(0, 2).map((c) => c.numero),
+    [dados],
+  )
+  const projecao = useMemo(
+    () => projetarPorVariacao(porUf, base, numerosProjecao),
+    [porUf, base, numerosProjecao],
+  )
 
   // Percentual do 1o turno por unidade federativa, para o balao do mapa.
   const primeiroPorUf = useMemo(() => {
@@ -227,6 +240,7 @@ export default function App() {
       conteudo: (
         <div className="space-y-10">
           <FaixaEstado apuracao={dados} defasado={defasado} />
+          <Projecao projecao={projecao} candidaturas={dados.candidaturas} />
           <BarrasCandidatos
             candidaturas={dados.candidaturas}
             titulo="Votos nominais apurados no Brasil"
