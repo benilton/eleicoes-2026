@@ -3,6 +3,7 @@ import type { CandidatoReplay, PontoReplay } from '../estado/useReplay'
 import { useReplay } from '../estado/useReplay'
 import type { Apuracao, Candidatura } from '../tse/tipos'
 import { CARGO, ELEICAO } from '../tse/urls'
+import LinhaDoTempo from '../viz/LinhaDoTempo'
 import MapaUF from '../viz/MapaUF'
 import type { ModoMapa } from '../viz/MapaUF'
 import Projecao from '../viz/Projecao'
@@ -270,6 +271,21 @@ export default function Replay() {
           das seções totalizadas · cobertura da projeção{' '}
           {doisDecimais.format(ponto.cob)}%
         </p>
+      </section>
+
+      <section aria-label="Apurado e projeção ao longo da noite">
+        <h2 className="mb-3 text-sm font-medium text-[var(--color-tinta-3)]">
+          A noite inteira, contra o relógio
+        </h2>
+        <LinhaDoTempo
+          pontos={pontos}
+          candidatos={candidatos}
+          indiceAtual={indice}
+          aoEscolher={(k) => {
+            setTocando(false)
+            setIndice(k)
+          }}
+        />
       </section>
 
       <section aria-label="Resultado apurado naquele instante">
