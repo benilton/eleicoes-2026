@@ -23,12 +23,9 @@ const XB1 = LARGURA - MARGEM.direita
 const Y0 = MARGEM.topo
 const Y1 = ALTURA - MARGEM.baixo
 
-/** Janela do eixo da esquerda, a mesma do gráfico de convergência. */
+/** Janela vertical, comum aos dois painéis, a mesma do gráfico de convergência. */
 const ESQ_PISO = 42
 const ESQ_TETO = 58
-
-/** Meia altura da janela ampliada da direita, em pontos percentuais. */
-const DIR_MEIA_ALTURA = 2.5
 
 /**
  * Pausa, em segundos, a partir da qual o trecho anterior é descartado.
@@ -105,18 +102,15 @@ export default function LinhaDoTempo({
   const escalaEsq = (p: number) =>
     Y1 - ((Math.max(ESQ_PISO, Math.min(ESQ_TETO, p)) - ESQ_PISO) / (ESQ_TETO - ESQ_PISO)) * (Y1 - Y0)
 
-  // Janela da direita centrada no meio dos resultados finais, fixa durante
-  // toda a reprodução: se ela se ajustasse a cada passo, a barra pareceria
-  // mudar de tamanho sem o intervalo ter mudado.
-  const centro =
-    candidatos.reduce((s, c) => s + finalDe(c.numero), 0) / Math.max(1, candidatos.length)
-  const dirPiso = centro - DIR_MEIA_ALTURA
-  const dirTeto = centro + DIR_MEIA_ALTURA
-  const escalaDir = (p: number) =>
-    Y1 - ((Math.max(dirPiso, Math.min(dirTeto, p)) - dirPiso) / (dirTeto - dirPiso)) * (Y1 - Y0)
+  // Os dois painéis dividem a mesma escala vertical, de propósito: assim a
+  // altura de qualquer marca do painel da direita pode ser lida direto contra
+  // a série do painel da esquerda, na horizontal.
+  const escalaDir = escalaEsq
+  const dirPiso = ESQ_PISO
+  const dirTeto = ESQ_TETO
 
   const marcasEsq = [0, 1, 2, 3, 4].map((k) => ESQ_PISO + ((ESQ_TETO - ESQ_PISO) / 4) * k)
-  const marcasDir = [0, 1, 2, 3, 4].map((k) => dirPiso + ((dirTeto - dirPiso) / 4) * k)
+  const marcasDir = marcasEsq
 
   const marcasX: number[] = []
   const passo = 3600
@@ -287,7 +281,7 @@ export default function LinhaDoTempo({
               textAnchor="start"
               dominantBaseline="central"
             >
-              {doisDecimais.format(marca)}
+              {Math.round(marca)}%
             </text>
           </g>
         ))}
@@ -408,12 +402,11 @@ export default function LinhaDoTempo({
 
       <p className="tabular mt-2 text-xs text-[var(--color-tinta-3)]">
         O painel da direita mostra, no instante da guia, o resultado final de cada
-        candidatura, a projeção daquele momento e o intervalo em volta dela. O painel da
-        esquerda usa uma janela de {ESQ_PISO}% a {ESQ_TETO}%, larga o bastante
-        para a noite inteira. O da direita amplia para {doisDecimais.format(dirPiso)}% a{' '}
-        {doisDecimais.format(dirTeto)}%, porque ali a pergunta é se o intervalo cobre o
-        resultado final, o que exige décimos de ponto. Intervalo mais alto que a janela
-        aparece com seta na ponta.
+        candidatura, a projeção daquele momento e o intervalo em volta dela. Os dois
+        painéis usam a mesma escala vertical, de {ESQ_PISO}% a {ESQ_TETO}%, então a
+        altura de qualquer marca da direita pode ser lida na horizontal contra a série da
+        esquerda. Perto do fim da apuração o intervalo fica menor que a espessura mínima
+        da barra, e aí só a cor responde se ele contém o resultado.
         {atual !== undefined && atual.pst > 0 && (
           <>
             {' '}
