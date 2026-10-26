@@ -100,12 +100,19 @@ export default function Projecao({ projecao, candidaturas }: ProjecaoProps) {
               </div>
               <div className="tabular mt-1 flex flex-wrap justify-between gap-x-4 gap-y-1 text-xs text-[var(--color-tinta-3)]">
                 <span>
-                  apurado agora {doisDecimais.format(c.atual)}% · variação sobre o
-                  1º turno{' '}
-                  <b className="font-semibold text-[var(--color-tinta-2)]">
-                    {comSinal.format(projecao.variacao[c.numero])}
-                  </b>{' '}
-                  p.p.
+                  apurado agora {doisDecimais.format(c.atual)}%
+                  {/* O histórico gravado não guarda a variação comum, só a
+                      projeção e a faixa. Número ausente omite o rótulo, em vez
+                      de exibir zero, que seria falso. */}
+                  {projecao.variacao[c.numero] !== undefined && (
+                    <>
+                      {' · '}variação sobre o 1º turno{' '}
+                      <b className="font-semibold text-[var(--color-tinta-2)]">
+                        {comSinal.format(projecao.variacao[c.numero])}
+                      </b>{' '}
+                      p.p.
+                    </>
+                  )}
                 </span>
                 <span>
                   faixa {doisDecimais.format(Math.max(0, projetado - meia))}% a{' '}

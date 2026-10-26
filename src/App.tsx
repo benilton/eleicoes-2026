@@ -22,6 +22,9 @@ import Projecao from './viz/Projecao'
 // Carregada sob demanda: o KaTeX, a folha de estilo e as fontes dele so
 // chegam ao visitante que abrir a guia de metodologia.
 const Metodologia = lazy(() => import('./ui/Metodologia'))
+// Também sob demanda: a reprodução baixa o histórico inteiro, que não
+// interessa a quem só quer o número da noite.
+const Replay = lazy(() => import('./ui/Replay'))
 import { projetarPorVariacao } from './analise/swing'
 import SeletorMunicipio from './ui/SeletorMunicipio'
 import Comparativo from './viz/Comparativo'
@@ -416,6 +419,20 @@ export default function App() {
   ]
 
   abas.push({
+    id: 'replay',
+    rotulo: 'Reprodução',
+    conteudo: (
+      <Suspense
+        fallback={
+          <p className="text-sm text-[var(--color-tinta-3)]">Carregando a reprodução…</p>
+        }
+      >
+        <Replay />
+      </Suspense>
+    ),
+  })
+
+  abas.push({
     id: 'metodologia',
     rotulo: 'Metodologia',
     conteudo: (
@@ -441,6 +458,7 @@ export default function App() {
     'municipio',
     'exterior',
     'convergencia',
+    'replay',
     'metodologia',
   ]
   abas.sort(

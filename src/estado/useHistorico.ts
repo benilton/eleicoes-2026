@@ -17,7 +17,7 @@ const BASE_HISTORICO = 'https://raw.githubusercontent.com/benilton/eleicoes-2026
 
 const preencher = (valor: string, tamanho: number): string => valor.padStart(tamanho, '0')
 
-const urlHistorico = (eleicao: string, cargo: string): string =>
+export const urlHistorico = (eleicao: string, cargo: string): string =>
   `${BASE_HISTORICO}/e${preencher(eleicao, 6)}-c${preencher(cargo, 4)}.json`
 
 /** Ponto da serie nacional, ja desempacotado do formato colunar do arquivo. */
