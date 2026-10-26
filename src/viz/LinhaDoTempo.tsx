@@ -22,6 +22,18 @@ const Y1 = ALTURA - MARGEM.baixo
 const JANELA_PISO = 42
 const JANELA_TETO = 58
 
+/**
+ * Pausa, em segundos, a partir da qual o trecho anterior é descartado.
+ *
+ * Na noite de 25 de outubro de 2026 o TSE publicou às 17h06 e ficou quase
+ * duas horas sem publicar de novo. Com o eixo em hora, aquele trecho virava
+ * uma reta ocupando metade da largura, sem informação nenhuma. A regra é
+ * geométrica, não uma hora escrita à mão: o gráfico começa no ponto que
+ * encerra a maior pausa, quando ela passa deste limite. Assim não depende do
+ * fuso de quem está lendo nem da data do pleito.
+ */
+const PAUSA_QUE_CORTA = 20 * 60
+
 const doisDecimais = new Intl.NumberFormat('pt-BR', {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
@@ -47,7 +59,21 @@ export default function LinhaDoTempo({
 }: LinhaDoTempoProps) {
   // Antes da primeira seção totalizada não há apurado: o ponto entraria como
   // zero e esmagaria a escala.
-  const indices = pontos.map((_, i) => i).filter((i) => pontos[i].pst > 0)
+  const comApuracao = pontos.map((_, i) => i).filter((i) => pontos[i].pst > 0)
+
+  // Maior pausa entre coletas consecutivas. O gráfico começa logo depois dela.
+  let corte = 0
+  let maiorPausa = 0
+  for (let k = 1; k < comApuracao.length; k += 1) {
+    const pausa = pontos[comApuracao[k]].t - pontos[comApuracao[k - 1]].t
+    if (pausa > maiorPausa) {
+      maiorPausa = pausa
+      corte = k
+    }
+  }
+  const recortado = maiorPausa >= PAUSA_QUE_CORTA ? comApuracao.slice(corte) : comApuracao
+  const indices = recortado.length >= 2 ? recortado : comApuracao
+
   if (indices.length < 2) {
     return (
       <p className="text-sm text-[var(--color-tinta-3)]">
@@ -283,12 +309,22 @@ export default function LinhaDoTempo({
         ))}
       </ul>
 
-      {atual !== undefined && atual.pst > 0 && (
-        <p className="tabular mt-2 text-xs text-[var(--color-tinta-3)]">
-          Guia em {horaMinuto(atual.t)}, com {doisDecimais.format(atual.pst)}% das seções.
-          Clicar no gráfico leva a reprodução para aquele instante.
-        </p>
-      )}
+      <p className="tabular mt-2 text-xs text-[var(--color-tinta-3)]">
+        {atual !== undefined && atual.pst > 0 && (
+          <>
+            Guia em {horaMinuto(atual.t)}, com {doisDecimais.format(atual.pst)}% das
+            seções. Clicar no gráfico leva a reprodução para aquele instante.{' '}
+          </>
+        )}
+        {indices.length < comApuracao.length && (
+          <>
+            O gráfico começa em {horaMinuto(pontos[indices[0]].t)}, logo depois da pausa
+            de {Math.round(maiorPausa / 60)} minutos em que o TSE não publicou. Os{' '}
+            {comApuracao.length - indices.length} pontos anteriores estão na reprodução,
+            mas ficariam como uma reta sem informação neste eixo.
+          </>
+        )}
+      </p>
     </figure>
   )
 }
