@@ -25,6 +25,9 @@ const Metodologia = lazy(() => import('./ui/Metodologia'))
 // Também sob demanda: a reprodução baixa o histórico inteiro, que não
 // interessa a quem só quer o número da noite.
 const Replay = lazy(() => import('./ui/Replay'))
+// Também sob demanda: a animação baixa public/animacao-2turno.json, que tem
+// cerca de 800 KB e só interessa a quem abrir esta guia.
+const ApuracaoEmMovimento = lazy(() => import('./ui/ApuracaoEmMovimento'))
 import { projetarPorVariacao } from './analise/swing'
 import SeletorMunicipio from './ui/SeletorMunicipio'
 import Comparativo from './viz/Comparativo'
@@ -433,6 +436,20 @@ export default function App() {
   })
 
   abas.push({
+    id: 'animacao',
+    rotulo: 'Em movimento',
+    conteudo: (
+      <Suspense
+        fallback={
+          <p className="text-sm text-[var(--color-tinta-3)]">Carregando a animação…</p>
+        }
+      >
+        <ApuracaoEmMovimento />
+      </Suspense>
+    ),
+  })
+
+  abas.push({
     id: 'metodologia',
     rotulo: 'Metodologia',
     conteudo: (
@@ -459,6 +476,7 @@ export default function App() {
     'exterior',
     'convergencia',
     'replay',
+    'animacao',
     'metodologia',
   ]
   abas.sort(

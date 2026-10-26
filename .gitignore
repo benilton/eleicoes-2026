@@ -12,3 +12,4 @@ _to_delete
 
 # Pasta criada pelo aplicativo do Claude, fora do projeto
 Claude outputs/
+.cache-animacao
